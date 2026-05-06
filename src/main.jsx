@@ -313,6 +313,32 @@ function App() {
     }
   }
 
+  async function openMaterialExternal(material) {
+    const fileUrl = `${API_BASE}/materials/${material.id}/file`;
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) throw new Error("Could not fetch file");
+      const blob = await response.blob();
+      const file = new File([blob], material.original_filename, {
+        type: blob.type || "application/octet-stream",
+      });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: material.title,
+          text: "Open this study material",
+        });
+        return;
+      }
+
+      setNotice("This device cannot share files directly from StudyFlow. Opening the file instead.");
+      window.location.href = fileUrl;
+    } catch (error) {
+      setNotice(error.message || "Could not open file.");
+    }
+  }
+
   async function importSharedFiles() {
     if (!selectedCourseId) {
       setNotice("Create or select a course before importing shared files.");
@@ -599,9 +625,9 @@ function App() {
                       <Layers size={18} />
                     </button>
                     {(material.original_filename.toLowerCase().endsWith(".pdf") || material.original_filename.toLowerCase().endsWith(".docx") || material.original_filename.toLowerCase().endsWith(".doc")) && (
-                      <a href={`${API_BASE}/materials/${material.id}/file`} target="_blank" rel="noreferrer" aria-label={`Open ${material.title}`}>
+                      <button type="button" aria-label={`Open ${material.title}`} onClick={() => openMaterialExternal(material)}>
                         <BookOpen size={18} />
-                      </a>
+                      </button>
                     )}
                     <button type="button" aria-label={`Delete ${material.title}`} onClick={() => deleteMaterial(material)}>
                       <Trash2 size={20} />
