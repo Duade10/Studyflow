@@ -792,12 +792,17 @@ function PdfReader({ material, fileUrl, onClose }) {
     let cancelled = false;
     setStatus("Loading PDF...");
     Promise.all([
-      import("pdfjs-dist"),
-      import("pdfjs-dist/build/pdf.worker.mjs?url"),
+      import("pdfjs-dist/legacy/build/pdf.mjs"),
+      import("pdfjs-dist/legacy/build/pdf.worker.mjs?url"),
     ])
       .then(([pdfjsLib, worker]) => {
         pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
-        return pdfjsLib.getDocument(fileUrl).promise;
+        return fetch(fileUrl)
+          .then((response) => {
+            if (!response.ok) throw new Error("Could not fetch PDF");
+            return response.arrayBuffer();
+          })
+          .then((data) => pdfjsLib.getDocument({ data }).promise);
       })
       .then((document) => {
         if (cancelled) return;
@@ -828,8 +833,13 @@ function PdfReader({ material, fileUrl, onClose }) {
       const viewport = page.getViewport({ scale });
       const canvas = canvasRef.current;
       const context = canvas.getContext("2d");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      const outputScale = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
+      context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+      context.clearRect(0, 0, viewport.width, viewport.height);
       renderTaskRef.current = page.render({ canvasContext: context, viewport });
       await renderTaskRef.current.promise.catch((error) => {
         if (error?.name !== "RenderingCancelledException") throw error;
