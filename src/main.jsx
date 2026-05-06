@@ -19,7 +19,6 @@ import {
   Sparkles,
   Smartphone,
   Trash2,
-  X,
 } from "lucide-react";
 import "./styles.css";
 
@@ -103,7 +102,6 @@ function App() {
   const [importingShare, setImportingShare] = useState(false);
   const [filesPanel, setFilesPanel] = useState("upload");
   const [expandedMaterialId, setExpandedMaterialId] = useState(null);
-  const [viewerMaterial, setViewerMaterial] = useState(null);
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId),
@@ -594,28 +592,16 @@ function App() {
                   <div>
                     <strong>{material.title}</strong>
                     <small title={material.original_filename}>{material.material_type.replace("_", " ")} · {compactName(material.original_filename)}</small>
-                    {expandedMaterialId === material.id && (
-                      <div className="chunk-stack">
-                        {courseDetail.chunks
-                          .filter((chunk) => chunk.material_id === material.id)
-                          .map((chunk) => (
-                            <div className="chunk-pill" key={chunk.id}>
-                              <span>{chunk.title}</span>
-                              <small>{chunk.difficulty}{chunk.summary ? ` · ${chunk.summary}` : ""}</small>
-                            </div>
-                          ))}
-                      </div>
-                    )}
                   </div>
                   <div className="material-actions">
                     <span>{courseDetail.chunks.filter((chunk) => chunk.material_id === material.id).length}</span>
                     <button type="button" aria-label={`Show details for ${material.title}`} onClick={() => setExpandedMaterialId(expandedMaterialId === material.id ? null : material.id)}>
                       <Layers size={18} />
                     </button>
-                    {material.original_filename.toLowerCase().endsWith(".pdf") && (
-                      <button type="button" aria-label={`View ${material.title}`} onClick={() => setViewerMaterial(material)}>
+                    {(material.original_filename.toLowerCase().endsWith(".pdf") || material.original_filename.toLowerCase().endsWith(".docx") || material.original_filename.toLowerCase().endsWith(".doc")) && (
+                      <a href={`${API_BASE}/materials/${material.id}/file`} target="_blank" rel="noreferrer" aria-label={`Open ${material.title}`}>
                         <BookOpen size={18} />
-                      </button>
+                      </a>
                     )}
                     <button type="button" aria-label={`Delete ${material.title}`} onClick={() => deleteMaterial(material)}>
                       <Trash2 size={20} />
@@ -624,6 +610,25 @@ function App() {
                 </article>
               ))}
             </div>
+
+            {expandedMaterialId && (
+              <section className="sections-sheet">
+                <div className="section-line">
+                  <h2>Sections</h2>
+                  <button type="button" onClick={() => setExpandedMaterialId(null)}>Close</button>
+                </div>
+                <div className="section-chip-grid">
+                  {courseDetail.chunks
+                    .filter((chunk) => chunk.material_id === expandedMaterialId)
+                    .map((chunk) => (
+                      <article className="section-chip" key={chunk.id}>
+                        <strong>{chunk.title}</strong>
+                        <small>{chunk.difficulty}{chunk.summary ? ` · ${chunk.summary}` : ""}</small>
+                      </article>
+                    ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
 
@@ -705,21 +710,6 @@ function App() {
           </div>
         )}
       </section>
-
-      {viewerMaterial && (
-        <section className="pdf-viewer" role="dialog" aria-label={`Viewing ${viewerMaterial.title}`}>
-          <div className="pdf-viewer-bar">
-            <div>
-              <strong>{viewerMaterial.title}</strong>
-              <small>{compactName(viewerMaterial.original_filename, 42)}</small>
-            </div>
-            <button type="button" onClick={() => setViewerMaterial(null)} aria-label="Close PDF reader">
-              <X size={22} />
-            </button>
-          </div>
-          <iframe title={viewerMaterial.title} src={`${API_BASE}/materials/${viewerMaterial.id}/file`} />
-        </section>
-      )}
 
       <nav className="dock" aria-label="Primary">
         {dockItems.map((item) => {

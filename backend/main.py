@@ -743,12 +743,19 @@ def get_material_file(material_id: int) -> FileResponse:
     if not stored_path.exists() or UPLOAD_DIR not in stored_path.resolve().parents:
         raise HTTPException(status_code=404, detail="Stored file not found")
 
-    media_type = "application/pdf" if stored_path.suffix.lower() == ".pdf" else "application/octet-stream"
+    suffix = stored_path.suffix.lower()
+    media_types = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".doc": "application/msword",
+    }
+    media_type = media_types.get(suffix, "application/octet-stream")
+    disposition = "inline" if suffix == ".pdf" else "attachment"
     return FileResponse(
         stored_path,
         media_type=media_type,
         filename=material["original_filename"],
-        headers={"Content-Disposition": f"inline; filename=\"{material['original_filename']}\""},
+        headers={"Content-Disposition": f"{disposition}; filename=\"{material['original_filename']}\""},
     )
 
 
