@@ -16,6 +16,7 @@ import {
   Plus,
   Search,
   Send,
+  Share2,
   Sparkles,
   Smartphone,
   Trash2,
@@ -314,6 +315,10 @@ function App() {
   }
 
   async function openMaterialExternal(material) {
+    window.location.href = `${API_BASE}/materials/${material.id}/file?download=1`;
+  }
+
+  async function shareMaterial(material) {
     const fileUrl = `${API_BASE}/materials/${material.id}/file`;
     try {
       const response = await fetch(fileUrl);
@@ -332,10 +337,9 @@ function App() {
         return;
       }
 
-      setNotice("This device cannot share files directly from StudyFlow. Opening the file instead.");
-      window.location.href = fileUrl;
+      setNotice("This device cannot share files directly. Use Open with instead.");
     } catch (error) {
-      setNotice(error.message || "Could not open file.");
+      setNotice(error.message || "Could not share file.");
     }
   }
 
@@ -627,6 +631,11 @@ function App() {
                     {(material.original_filename.toLowerCase().endsWith(".pdf") || material.original_filename.toLowerCase().endsWith(".docx") || material.original_filename.toLowerCase().endsWith(".doc")) && (
                       <button type="button" aria-label={`Open ${material.title}`} onClick={() => openMaterialExternal(material)}>
                         <BookOpen size={18} />
+                      </button>
+                    )}
+                    {(material.original_filename.toLowerCase().endsWith(".pdf") || material.original_filename.toLowerCase().endsWith(".docx") || material.original_filename.toLowerCase().endsWith(".doc")) && (
+                      <button type="button" aria-label={`Share ${material.title}`} onClick={() => shareMaterial(material)}>
+                        <Share2 size={18} />
                       </button>
                     )}
                     <button type="button" aria-label={`Delete ${material.title}`} onClick={() => deleteMaterial(material)}>

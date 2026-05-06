@@ -733,7 +733,7 @@ def delete_material(material_id: int) -> dict:
 
 
 @app.get("/materials/{material_id}/file")
-def get_material_file(material_id: int) -> FileResponse:
+def get_material_file(material_id: int, download: bool = False) -> FileResponse:
     with db() as connection:
         material = connection.execute("SELECT * FROM materials WHERE id = ?", (material_id,)).fetchone()
         if material is None:
@@ -750,7 +750,7 @@ def get_material_file(material_id: int) -> FileResponse:
         ".doc": "application/msword",
     }
     media_type = media_types.get(suffix, "application/octet-stream")
-    disposition = "inline" if suffix == ".pdf" else "attachment"
+    disposition = "attachment" if download else ("inline" if suffix == ".pdf" else "attachment")
     return FileResponse(
         stored_path,
         media_type=media_type,
