@@ -138,7 +138,13 @@ function App() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker.register("/sw.js").then((registration) => registration.update()).catch(() => {});
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.type === "STUDYFLOW_UPDATED" && !sessionStorage.getItem("studyflow-reloaded")) {
+          sessionStorage.setItem("studyflow-reloaded", "1");
+          window.location.reload();
+        }
+      });
     }
 
     const standalone =
@@ -787,13 +793,14 @@ function PdfReader({ material, fileUrl, onClose }) {
   const [pageCount, setPageCount] = useState(0);
   const [scale, setScale] = useState(1.1);
   const [status, setStatus] = useState("Loading PDF...");
+  const [fallbackMode, setFallbackMode] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setStatus("Loading PDF...");
     Promise.all([
-      import("pdfjs-dist/legacy/build/pdf.mjs"),
-      import("pdfjs-dist/legacy/build/pdf.worker.mjs?url"),
+      import("pdfjs-dist/legacy/build/pdf.min.mjs"),
+      import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
     ])
       .then(([pdfjsLib, worker]) => {
         pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
@@ -812,7 +819,10 @@ function PdfReader({ material, fileUrl, onClose }) {
         setStatus("");
       })
       .catch(() => {
-        if (!cancelled) setStatus("Could not load this PDF.");
+        if (!cancelled) {
+          setStatus("Could not load with PDF renderer. Showing browser view.");
+          setFallbackMode(true);
+        }
       });
 
     return () => {
@@ -848,7 +858,10 @@ function PdfReader({ material, fileUrl, onClose }) {
     }
 
     renderPage().catch(() => {
-      if (!cancelled) setStatus("Could not render this page.");
+      if (!cancelled) {
+        setStatus("Could not render this page. Showing browser view.");
+        setFallbackMode(true);
+      }
     });
 
     return () => {
@@ -870,15 +883,21 @@ function PdfReader({ material, fileUrl, onClose }) {
       </div>
       <div className="pdf-reader-stage">
         {status && <p className="pdf-status">{status}</p>}
-        <canvas ref={canvasRef} />
+        {fallbackMode ? (
+          <iframe title={material.title} src={fileUrl} />
+        ) : (
+          <canvas ref={canvasRef} />
+        )}
       </div>
-      <div className="pdf-reader-controls">
+      {!fallbackMode ? <div className="pdf-reader-controls">
         <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>Prev</button>
         <button type="button" onClick={() => setScale((value) => Math.max(0.75, value - 0.15))}>-</button>
         <span>{Math.round(scale * 100)}%</span>
         <button type="button" onClick={() => setScale((value) => Math.min(2, value + 0.15))}>+</button>
         <button type="button" disabled={pageNumber >= pageCount} onClick={() => setPageNumber((page) => Math.min(pageCount, page + 1))}>Next</button>
-      </div>
+      </div> : <div className="pdf-reader-controls">
+        <button type="button" onClick={() => window.location.href = fileUrl}>Open file</button>
+      </div>}
     </section>
   );
 }

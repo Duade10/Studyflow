@@ -1,4 +1,4 @@
-const CACHE_NAME = "studyflow-v1";
+const CACHE_NAME = "studyflow-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/pwa-icon.svg"];
 const DB_NAME = "studyflow-share-target";
 const STORE_NAME = "shared-files";
@@ -46,9 +46,12 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+      const clientsList = await self.clients.matchAll({ type: "window" });
+      clientsList.forEach((client) => client.postMessage({ type: "STUDYFLOW_UPDATED" }));
+    })()
   );
   self.clients.claim();
 });
