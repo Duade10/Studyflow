@@ -40,7 +40,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [activeView, setActiveView] = useState("today");
   const [courseForm, setCourseForm] = useState({ name: "", code: "" });
-  const [uploadForm, setUploadForm] = useState({ title: "", material_type: "slides", file: null });
+  const [uploadForm, setUploadForm] = useState({ title: "", material_type: "slides", files: [] });
   const [chunkForm, setChunkForm] = useState({ material_id: "", title: "", difficulty: "medium", notes: "" });
   const [askForm, setAskForm] = useState({ material_id: "", question: "" });
   const [answer, setAnswer] = useState(null);
@@ -144,11 +144,11 @@ function App() {
       setNotice("Create or select a course before uploading material.");
       return;
     }
-    if (!uploadForm.file) {
-      setNotice("Choose a file before uploading.");
+    if (!uploadForm.files.length) {
+      setNotice("Choose at least one file before uploading.");
       return;
     }
-    if (!uploadForm.title.trim()) {
+    if (uploadForm.files.length === 1 && !uploadForm.title.trim()) {
       setNotice("Add a material title before uploading.");
       return;
     }
@@ -157,12 +157,11 @@ function App() {
       body.append("course_id", selectedCourseId);
       body.append("title", uploadForm.title);
       body.append("material_type", uploadForm.material_type);
-      body.append("file", uploadForm.file);
-      const material = await api("/materials", { method: "POST", body });
-      setUploadForm({ title: "", material_type: "slides", file: null });
+      uploadForm.files.forEach((file) => body.append("files", file));
+      const result = await api("/materials/bulk", { method: "POST", body });
+      setUploadForm({ title: "", material_type: "slides", files: [] });
       form.reset();
-      const count = material.processing.chunks || material.processing.questions || 0;
-      setNotice(`Material processed by ${material.processing.mode}. Generated ${count} item${count === 1 ? "" : "s"}.`);
+      setNotice(`Processed ${result.total_files} document${result.total_files === 1 ? "" : "s"} and generated ${result.total_generated} item${result.total_generated === 1 ? "" : "s"}.`);
       await refreshCourse();
       await refresh();
     } catch (error) {
@@ -365,17 +364,21 @@ function App() {
                   <option value="past_questions">Past Questions</option>
                   <option value="practical">Practical Guide</option>
                 </select>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,image/*"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] || null;
-                    const inferredTitle = file?.name?.replace(/\.[^.]+$/, "") || "";
-                    setUploadForm({ ...uploadForm, file, title: uploadForm.title || inferredTitle });
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,image/*"
+                onChange={(event) => {
+                    const files = Array.from(event.target.files || []);
+                    const inferredTitle = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, "") : "";
+                    setUploadForm({ ...uploadForm, files, title: uploadForm.title || inferredTitle });
                   }}
-                  disabled={!selectedCourseId}
-                />
-              </div>
+                disabled={!selectedCourseId}
+              />
+              {uploadForm.files.length > 0 && (
+                <p className="file-count">{uploadForm.files.length} document{uploadForm.files.length === 1 ? "" : "s"} selected</p>
+              )}
+            </div>
               <button disabled={!selectedCourseId}>Upload material</button>
             </form>
 

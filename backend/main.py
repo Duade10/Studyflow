@@ -639,6 +639,68 @@ def upload_material(
     }
 
 
+@app.post("/materials/bulk")
+def upload_materials_bulk(
+    course_id: int = Form(...),
+    title: Optional[str] = Form(None),
+    material_type: str = Form("slides"),
+    files: list[UploadFile] = File(...),
+) -> dict:
+    if not files:
+        raise HTTPException(status_code=400, detail="Choose at least one file")
+
+    with db() as connection:
+        course = connection.execute("SELECT id FROM courses WHERE id = ?", (course_id,)).fetchone()
+        if course is None:
+            raise HTTPException(status_code=404, detail="Course not found")
+
+    uploaded: list[dict] = []
+    for file in files:
+        extension = Path(file.filename or "").suffix
+        stored_name = f"{uuid.uuid4().hex}{extension}"
+        stored_path = UPLOAD_DIR / stored_name
+
+        with stored_path.open("wb") as target:
+            shutil.copyfileobj(file.file, target)
+
+        file_title = title.strip() if title and len(files) == 1 else Path(file.filename or "Material").stem
+        extracted_text = extract_text(stored_path)
+        now = datetime.utcnow().isoformat()
+        with db() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO materials
+                  (course_id, title, material_type, original_filename, stored_path, extracted_text, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (course_id, file_title, material_type, file.filename, str(stored_path), extracted_text, now),
+            )
+            material_id = int(cursor.lastrowid)
+            processing = process_material(connection, material_id)
+
+        uploaded.append(
+            {
+                "id": material_id,
+                "course_id": course_id,
+                "title": file_title,
+                "material_type": material_type,
+                "original_filename": file.filename,
+                "has_extracted_text": bool(extracted_text),
+                "processing": processing,
+                "created_at": now,
+            }
+        )
+
+    return {
+        "uploaded": uploaded,
+        "total_files": len(uploaded),
+        "total_generated": sum(
+            item["processing"].get("chunks", 0) + item["processing"].get("questions", 0)
+            for item in uploaded
+        ),
+    }
+
+
 @app.post("/materials/{material_id}/chunks")
 def create_chunk(material_id: int, payload: ChunkIn) -> dict:
     with db() as connection:

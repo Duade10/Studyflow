@@ -416,6 +416,13 @@ input::file-selector-button {
   font-weight: 900;
 }
 
+.file-count {
+  align-self: center;
+  color: #0874d9;
+  font-size: 16px;
+  font-weight: 900;
+}
+
 .glass-form button,
 .ask-surface button,
 .question-box button {
