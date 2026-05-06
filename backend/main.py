@@ -701,6 +701,36 @@ def upload_materials_bulk(
     }
 
 
+@app.delete("/materials/{material_id}")
+def delete_material(material_id: int) -> dict:
+    with db() as connection:
+        material = connection.execute("SELECT * FROM materials WHERE id = ?", (material_id,)).fetchone()
+        if material is None:
+            raise HTTPException(status_code=404, detail="Material not found")
+
+        chunk_ids = [
+            row["id"]
+            for row in connection.execute(
+                "SELECT id FROM material_chunks WHERE material_id = ?",
+                (material_id,),
+            ).fetchall()
+        ]
+        for chunk_id in chunk_ids:
+            connection.execute("DELETE FROM tasks WHERE chunk_id = ?", (chunk_id,))
+
+        if material["material_type"] == "past_questions":
+            connection.execute("DELETE FROM past_questions WHERE course_id = ?", (material["course_id"],))
+
+        connection.execute("DELETE FROM material_chunks WHERE material_id = ?", (material_id,))
+        connection.execute("DELETE FROM materials WHERE id = ?", (material_id,))
+
+    stored_path = Path(material["stored_path"])
+    if stored_path.exists() and UPLOAD_DIR in stored_path.resolve().parents:
+        stored_path.unlink()
+
+    return {"deleted": True, "id": material_id}
+
+
 @app.post("/materials/{material_id}/chunks")
 def create_chunk(material_id: int, payload: ChunkIn) -> dict:
     with db() as connection:

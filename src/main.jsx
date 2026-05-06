@@ -18,6 +18,7 @@ import {
   Send,
   Sparkles,
   Smartphone,
+  Trash2,
 } from "lucide-react";
 import "./styles.css";
 
@@ -225,6 +226,23 @@ function App() {
       setNotice(error.message);
     } finally {
       setAsking(false);
+    }
+  }
+
+  async function deleteMaterial(material) {
+    const confirmed = window.confirm(`Delete "${material.title}" and its generated tasks?`);
+    if (!confirmed) return;
+    try {
+      await api(`/materials/${material.id}`, { method: "DELETE" });
+      setNotice(`Deleted ${material.title}.`);
+      if (askForm.material_id === String(material.id)) {
+        setAskForm({ material_id: "", question: "" });
+        setAnswer(null);
+      }
+      await refreshCourse();
+      await refresh();
+    } catch (error) {
+      setNotice(error.message);
     }
   }
 
@@ -438,7 +456,12 @@ function App() {
                         ))}
                     </div>
                   </div>
-                  <span>{courseDetail.chunks.filter((chunk) => chunk.material_id === material.id).length}</span>
+                  <div className="material-actions">
+                    <span>{courseDetail.chunks.filter((chunk) => chunk.material_id === material.id).length}</span>
+                    <button type="button" aria-label={`Delete ${material.title}`} onClick={() => deleteMaterial(material)}>
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
