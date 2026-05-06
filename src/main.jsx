@@ -25,6 +25,13 @@ import "./styles.css";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const SHARE_DB_NAME = "studyflow-share-target";
 const SHARE_STORE_NAME = "shared-files";
+const compactName = (name = "", max = 34) => {
+  if (name.length <= max) return name;
+  const dot = name.lastIndexOf(".");
+  const extension = dot > -1 ? name.slice(dot) : "";
+  const base = dot > -1 ? name.slice(0, dot) : name;
+  return `${base.slice(0, Math.max(12, max - extension.length - 3))}...${extension}`;
+};
 
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, options);
@@ -454,7 +461,7 @@ function App() {
                 <div className="row-icon"><FileUp size={22} /></div>
                 <div>
                   <strong>Shared from WhatsApp</strong>
-                  <p>{sharedFiles.map((item) => item.file.name).join(", ")}</p>
+                  <p>{sharedFiles.length} file{sharedFiles.length === 1 ? "" : "s"} · {sharedFiles.map((item) => compactName(item.file.name, 22)).join(", ")}</p>
                 </div>
                 <select value={shareMaterialType} onChange={(event) => setShareMaterialType(event.target.value)}>
                   <option value="slides">Slides / Notes</option>
@@ -558,7 +565,7 @@ function App() {
                   <div className="row-icon"><FolderOpen size={22} /></div>
                   <div>
                     <strong>{material.title}</strong>
-                    <small>{material.material_type.replace("_", " ")} · {material.original_filename}</small>
+                    <small title={material.original_filename}>{material.material_type.replace("_", " ")} · {compactName(material.original_filename)}</small>
                     <div className="chunk-stack">
                       {courseDetail.chunks
                         .filter((chunk) => chunk.material_id === material.id)

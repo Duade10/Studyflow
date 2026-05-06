@@ -59,9 +59,12 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         const formData = await event.request.formData();
-        const files = formData
-          .getAll("files")
-          .filter((item) => item && typeof item === "object" && "arrayBuffer" in item);
+        const files = [];
+        for (const [, item] of formData.entries()) {
+          if (item && typeof item === "object" && "arrayBuffer" in item) {
+            files.push(item);
+          }
+        }
 
         if (files.length) {
           await saveSharedFiles(files);

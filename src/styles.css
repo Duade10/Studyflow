@@ -682,6 +682,16 @@ p {
   min-width: 0;
 }
 
+.material-row small,
+.account-row small,
+.task-row small {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .material-actions {
   display: grid;
   justify-items: end;
