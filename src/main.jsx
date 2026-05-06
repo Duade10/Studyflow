@@ -93,6 +93,7 @@ function App() {
   const [sharedFiles, setSharedFiles] = useState([]);
   const [shareMaterialType, setShareMaterialType] = useState("slides");
   const [importingShare, setImportingShare] = useState(false);
+  const [filesPanel, setFilesPanel] = useState("upload");
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId),
@@ -466,73 +467,84 @@ function App() {
               </article>
             )}
 
-            <form className="glass-form" onSubmit={uploadMaterial}>
-              <h2><FileUp size={21} /> Upload</h2>
-              <input
-                placeholder="Slides Week 1"
-                value={uploadForm.title}
-                onChange={(event) => setUploadForm({ ...uploadForm, title: event.target.value })}
-                disabled={!selectedCourseId}
-              />
-              <div className="form-grid">
-                <select
-                  value={uploadForm.material_type}
-                  onChange={(event) => setUploadForm({ ...uploadForm, material_type: event.target.value })}
-                  disabled={!selectedCourseId}
-                >
-                  <option value="slides">Slides / Notes</option>
-                  <option value="past_questions">Past Questions</option>
-                  <option value="practical">Practical Guide</option>
-                </select>
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.doc,.docx,image/*"
-                onChange={(event) => {
-                    const files = Array.from(event.target.files || []);
-                    const inferredTitle = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, "") : "";
-                    setUploadForm({ ...uploadForm, files, title: uploadForm.title || inferredTitle });
-                  }}
-                disabled={!selectedCourseId}
-              />
-              {uploadForm.files.length > 0 && (
-                <p className="file-count">{uploadForm.files.length} document{uploadForm.files.length === 1 ? "" : "s"} selected</p>
-              )}
+            <div className="files-actions">
+              <button className={filesPanel === "upload" ? "active" : ""} type="button" onClick={() => setFilesPanel(filesPanel === "upload" ? "" : "upload")}>
+                <FileUp size={18} />
+                Upload
+              </button>
+              <button className={filesPanel === "section" ? "active" : ""} type="button" onClick={() => setFilesPanel(filesPanel === "section" ? "" : "section")}>
+                <Layers size={18} />
+                Section
+              </button>
             </div>
-              <button disabled={!selectedCourseId}>Upload material</button>
-            </form>
 
-            <form className="glass-form" onSubmit={createChunk}>
-              <h2><Layers size={21} /> Section</h2>
-              <select
-                value={chunkForm.material_id}
-                onChange={(event) => setChunkForm({ ...chunkForm, material_id: event.target.value })}
-                disabled={!courseDetail?.materials?.length}
-              >
-                <option value="">Choose material</option>
-                {courseDetail?.materials?.map((material) => (
-                  <option value={material.id} key={material.id}>{material.title}</option>
-                ))}
-              </select>
-              <input
-                placeholder="Cardiovascular System (Part 1)"
-                value={chunkForm.title}
-                onChange={(event) => setChunkForm({ ...chunkForm, title: event.target.value })}
-              />
-              <div className="form-grid">
-                <select value={chunkForm.difficulty} onChange={(event) => setChunkForm({ ...chunkForm, difficulty: event.target.value })}>
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
+            {filesPanel === "upload" && (
+              <form className="glass-form compact-form" onSubmit={uploadMaterial}>
+                <input
+                  placeholder="Title, optional for multiple files"
+                  value={uploadForm.title}
+                  onChange={(event) => setUploadForm({ ...uploadForm, title: event.target.value })}
+                  disabled={!selectedCourseId}
+                />
+                <div className="form-grid">
+                  <select
+                    value={uploadForm.material_type}
+                    onChange={(event) => setUploadForm({ ...uploadForm, material_type: event.target.value })}
+                    disabled={!selectedCourseId}
+                  >
+                    <option value="slides">Slides / Notes</option>
+                    <option value="past_questions">Past Questions</option>
+                    <option value="practical">Practical Guide</option>
+                  </select>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,image/*"
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files || []);
+                      const inferredTitle = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, "") : "";
+                      setUploadForm({ ...uploadForm, files, title: uploadForm.title || inferredTitle });
+                    }}
+                    disabled={!selectedCourseId}
+                  />
+                </div>
+                <div className="compact-submit">
+                  <p className="file-count">{uploadForm.files.length ? `${uploadForm.files.length} selected` : "PDF, DOCX, images"}</p>
+                  <button disabled={!selectedCourseId}>Upload</button>
+                </div>
+              </form>
+            )}
+
+            {filesPanel === "section" && (
+              <form className="glass-form compact-form" onSubmit={createChunk}>
+                <select
+                  value={chunkForm.material_id}
+                  onChange={(event) => setChunkForm({ ...chunkForm, material_id: event.target.value })}
+                  disabled={!courseDetail?.materials?.length}
+                >
+                  <option value="">Choose material</option>
+                  {courseDetail?.materials?.map((material) => (
+                    <option value={material.id} key={material.id}>{material.title}</option>
+                  ))}
                 </select>
-                <button disabled={!courseDetail?.materials?.length}>Save section</button>
-              </div>
-              <textarea
-                placeholder="Short notes, pages, or practical steps"
-                value={chunkForm.notes}
-                onChange={(event) => setChunkForm({ ...chunkForm, notes: event.target.value })}
-              />
-            </form>
+                <div className="form-grid">
+                  <input
+                    placeholder="Topic or section title"
+                    value={chunkForm.title}
+                    onChange={(event) => setChunkForm({ ...chunkForm, title: event.target.value })}
+                  />
+                  <select value={chunkForm.difficulty} onChange={(event) => setChunkForm({ ...chunkForm, difficulty: event.target.value })}>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+                <div className="compact-submit">
+                  <p className="file-count">Adds a task for today</p>
+                  <button disabled={!courseDetail?.materials?.length}>Save</button>
+                </div>
+              </form>
+            )}
 
             <div className="section-line">
               <h2>Material Hub</h2>

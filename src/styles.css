@@ -495,6 +495,41 @@ p {
   font-weight: 900;
 }
 
+.files-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.files-actions button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  color: #111111;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 22px rgba(39, 41, 48, 0.06);
+  font-weight: 900;
+}
+
+.files-actions button.active {
+  color: #0874d9;
+  background: #ffffff;
+}
+
+.compact-form {
+  padding: 12px;
+}
+
+.compact-submit {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
 .screen-panel,
 .view-stack {
   display: grid;
@@ -965,6 +1000,10 @@ select:disabled {
 
   .form-grid,
   .question-box {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-submit {
     grid-template-columns: 1fr;
   }
 
