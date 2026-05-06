@@ -23,6 +23,8 @@ import {
 import "./styles.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const SHARE_DB_NAME = "studyflow-share-target";
+const SHARE_STORE_NAME = "shared-files";
 
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, options);
@@ -31,6 +33,46 @@ async function api(path, options = {}) {
     throw new Error(error.detail || "Request failed");
   }
   return response.json();
+}
+
+function openShareDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(SHARE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(SHARE_STORE_NAME, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readSharedFiles() {
+  if (!("indexedDB" in window)) return [];
+  const db = await openShareDb();
+  const files = await new Promise((resolve, reject) => {
+    const transaction = db.transaction(SHARE_STORE_NAME, "readonly");
+    const request = transaction.objectStore(SHARE_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return files.map((item) => ({
+    id: item.id,
+    file: new File([item.data], item.name, { type: item.type }),
+    createdAt: item.createdAt,
+  }));
+}
+
+async function clearSharedFiles(ids) {
+  const db = await openShareDb();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(SHARE_STORE_NAME, "readwrite");
+    const store = transaction.objectStore(SHARE_STORE_NAME);
+    ids.forEach((id) => store.delete(id));
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+  });
+  db.close();
 }
 
 function App() {
@@ -48,6 +90,9 @@ function App() {
   const [asking, setAsking] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [sharedFiles, setSharedFiles] = useState([]);
+  const [shareMaterialType, setShareMaterialType] = useState("slides");
+  const [importingShare, setImportingShare] = useState(false);
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId),
@@ -107,6 +152,19 @@ function App() {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);
     };
+  }, []);
+
+  useEffect(() => {
+    readSharedFiles()
+      .then((files) => {
+        setSharedFiles(files);
+        if (files.length) {
+          setActiveView("materials");
+          setNotice(`${files.length} shared document${files.length === 1 ? "" : "s"} ready to import.`);
+          window.history.replaceState({}, "", "/");
+        }
+      })
+      .catch(() => {});
   }, []);
 
   async function installApp() {
@@ -246,6 +304,32 @@ function App() {
     }
   }
 
+  async function importSharedFiles() {
+    if (!selectedCourseId) {
+      setNotice("Create or select a course before importing shared files.");
+      return;
+    }
+    if (!sharedFiles.length) return;
+
+    setImportingShare(true);
+    try {
+      const body = new FormData();
+      body.append("course_id", selectedCourseId);
+      body.append("material_type", shareMaterialType);
+      sharedFiles.forEach((item) => body.append("files", item.file));
+      const result = await api("/materials/bulk", { method: "POST", body });
+      await clearSharedFiles(sharedFiles.map((item) => item.id));
+      setSharedFiles([]);
+      setNotice(`Imported ${result.total_files} shared document${result.total_files === 1 ? "" : "s"} into Files.`);
+      await refreshCourse();
+      await refresh();
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setImportingShare(false);
+    }
+  }
+
   const dockItems = [
     { id: "today", label: "Today", icon: CalendarCheck },
     { id: "materials", label: "Files", icon: FolderOpen },
@@ -364,6 +448,24 @@ function App() {
 
         {activeView === "materials" && (
           <div className="view-stack">
+            {sharedFiles.length > 0 && (
+              <article className="shared-import-card">
+                <div className="row-icon"><FileUp size={22} /></div>
+                <div>
+                  <strong>Shared from WhatsApp</strong>
+                  <p>{sharedFiles.map((item) => item.file.name).join(", ")}</p>
+                </div>
+                <select value={shareMaterialType} onChange={(event) => setShareMaterialType(event.target.value)}>
+                  <option value="slides">Slides / Notes</option>
+                  <option value="past_questions">Past Questions</option>
+                  <option value="practical">Practical Guide</option>
+                </select>
+                <button type="button" disabled={importingShare || !selectedCourseId} onClick={importSharedFiles}>
+                  {importingShare ? "Importing" : "Import"}
+                </button>
+              </article>
+            )}
+
             <form className="glass-form" onSubmit={uploadMaterial}>
               <h2><FileUp size={21} /> Upload</h2>
               <input
