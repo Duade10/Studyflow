@@ -1,0 +1,14 @@
+[Unit]
+Description=StudyFlow FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/studyflow
+EnvironmentFile=-/opt/studyflow/backend/.env
+ExecStart=/opt/studyflow/backend/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8013
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
