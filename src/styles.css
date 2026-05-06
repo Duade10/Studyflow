@@ -4,6 +4,264 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* Compact density pass */
+:root {
+  font-size: 14px;
+}
+
+.app {
+  padding: 18px 24px 92px;
+}
+
+.phone-top {
+  grid-template-columns: 72px 1fr 116px;
+  gap: 10px;
+}
+
+.top-actions {
+  gap: 10px;
+}
+
+.bubble-button {
+  width: 48px;
+  height: 48px;
+}
+
+.brand-lockup {
+  gap: 4px;
+  font-size: 15px;
+}
+
+.brand-flower {
+  width: 34px;
+  height: 34px;
+}
+
+.hero-balance {
+  gap: 8px;
+  padding: 18px 0;
+}
+
+.segmented-control {
+  width: min(100%, 480px);
+  margin-bottom: 14px;
+}
+
+.segmented-control button {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.hero-balance p,
+.hero-balance span {
+  font-size: 14px;
+}
+
+.hero-balance h1 {
+  font-size: clamp(38px, 7vw, 58px);
+}
+
+.course-tabs {
+  padding-bottom: 12px;
+}
+
+.course-tabs button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.notice,
+.install-card,
+.shared-import-card,
+.glass-form,
+.ask-surface,
+.answer-box {
+  border-radius: 24px;
+}
+
+.screen-panel,
+.view-stack {
+  gap: 12px;
+}
+
+.install-card {
+  grid-template-columns: 44px 1fr auto;
+  padding: 12px 14px;
+}
+
+.install-card strong,
+.shared-import-card strong {
+  font-size: 16px;
+}
+
+.install-card p,
+.shared-import-card p {
+  font-size: 12px;
+}
+
+.shared-import-card {
+  grid-template-columns: 42px minmax(0, 1fr) minmax(130px, 180px) auto;
+  padding: 12px 14px;
+}
+
+.todo-carousel {
+  grid-auto-columns: minmax(180px, 1fr);
+  gap: 12px;
+}
+
+.todo-card {
+  min-height: 128px;
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.todo-card small {
+  font-size: 12px;
+}
+
+.todo-card strong {
+  font-size: 15px;
+}
+
+.todo-card svg {
+  width: 32px;
+  height: 32px;
+}
+
+.forecast-pill,
+.task-row,
+.material-row,
+.account-row {
+  grid-template-columns: 42px 1fr auto;
+  gap: 10px;
+  border-radius: 24px;
+}
+
+.forecast-pill,
+.task-row,
+.account-row,
+.material-row {
+  min-height: 64px;
+  padding: 11px 14px;
+}
+
+.forecast-pill strong,
+.task-row strong,
+.material-row strong,
+.account-row strong {
+  font-size: 15px;
+}
+
+.forecast-pill p,
+.task-row small,
+.material-row small,
+.account-row small {
+  font-size: 12px;
+}
+
+.glass-icon,
+.row-icon,
+.course-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  font-size: 20px;
+}
+
+.section-line {
+  padding: 6px 6px 0;
+}
+
+.section-line h2 {
+  font-size: 18px;
+}
+
+.section-line span,
+.material-actions span {
+  font-size: 14px;
+}
+
+.list-stack {
+  gap: 10px;
+}
+
+.material-actions button {
+  width: 32px;
+  height: 32px;
+}
+
+.glass-form,
+.ask-surface {
+  gap: 10px;
+  padding: 14px;
+}
+
+.glass-form h2,
+.ask-surface h2 {
+  font-size: 17px;
+}
+
+input,
+select,
+textarea,
+.glass-form button,
+.ask-surface button,
+.question-box button,
+.shared-import-card button {
+  min-height: 38px;
+  border-radius: 13px;
+}
+
+textarea {
+  min-height: 64px;
+}
+
+.question-box {
+  border-radius: 18px;
+}
+
+.answer-box {
+  padding: 14px;
+}
+
+.answer-box p {
+  font-size: 13px;
+}
+
+.chunk-stack {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chunk-pill {
+  padding: 8px 10px;
+  border-radius: 13px;
+}
+
+.chunk-pill small {
+  font-size: 11px;
+}
+
+.empty {
+  padding: 14px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+}
+
+.dock {
+  bottom: 12px;
+  width: min(calc(100% - 24px), 680px);
+  padding: 5px;
+}
+
+.dock button {
+  padding: 6px 6px 5px;
+}
+
+.dock button small {
+  font-size: 11px;
+}
+
 * {
   box-sizing: border-box;
 }
