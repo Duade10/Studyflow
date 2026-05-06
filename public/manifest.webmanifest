@@ -1,0 +1,18 @@
+{
+  "name": "StudyFlow",
+  "short_name": "StudyFlow",
+  "description": "Upload study materials and turn them into daily exam prep tasks.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#e9e9ef",
+  "theme_color": "#e9e9ef",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

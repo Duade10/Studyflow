@@ -1,0 +1,655 @@
+:root {
+  color: #070707;
+  background: #e9e9ef;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #dfe1e8;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background:
+    radial-gradient(circle at 20% 8%, rgba(255, 255, 255, 0.8), transparent 24rem),
+    linear-gradient(180deg, #f0f0f5 0%, #e7e8ee 100%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.app {
+  position: relative;
+  width: min(100%, 980px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 44px 38px 138px;
+}
+
+.phone-top {
+  display: grid;
+  grid-template-columns: 112px 1fr 180px;
+  align-items: center;
+  gap: 18px;
+}
+
+.top-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+.bubble-button {
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #050505;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 34px rgba(34, 36, 43, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.85);
+}
+
+.brand-lockup {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.brand-flower {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  color: #0572df;
+}
+
+.hero-balance {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 58px 0 44px;
+  text-align: center;
+}
+
+.segmented-control {
+  width: min(100%, 560px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 4px;
+  margin-bottom: 42px;
+  border-radius: 999px;
+  background: #d4d5db;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.segmented-control button {
+  min-height: 76px;
+  border-radius: 999px;
+  color: #080808;
+  background: transparent;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.segmented-control button.selected {
+  color: #066fcf;
+  background: #ffffff;
+  box-shadow: 0 12px 26px rgba(22, 26, 34, 0.12);
+}
+
+.hero-balance p,
+.hero-balance span {
+  color: #62636a;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.hero-balance h1 {
+  font-size: clamp(64px, 12vw, 110px);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.course-tabs {
+  display: flex;
+  gap: 10px;
+  padding: 4px 2px 24px;
+  overflow-x: auto;
+}
+
+.course-tabs button {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 20px;
+  border-radius: 999px;
+  color: #4f5058;
+  background: rgba(255, 255, 255, 0.62);
+  font-weight: 900;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.course-tabs button.active {
+  color: #ffffff;
+  background: #0874d9;
+}
+
+.notice {
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border-radius: 28px;
+  color: #705200;
+  background: #fff5cf;
+  box-shadow: inset 0 0 0 1px rgba(215, 185, 87, 0.38);
+  font-weight: 800;
+}
+
+.install-card {
+  display: grid;
+  grid-template-columns: 66px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 20px 22px;
+  border-radius: 38px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 30px rgba(39, 41, 48, 0.07);
+}
+
+.install-card strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 23px;
+}
+
+.install-card p {
+  color: #686970;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.install-card button {
+  min-height: 50px;
+  border-radius: 999px;
+  padding: 0 20px;
+  color: #ffffff;
+  background: #0874d9;
+  font-weight: 900;
+}
+
+.screen-panel,
+.view-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.todo-carousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(270px, 1fr);
+  gap: 24px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.todo-card {
+  min-height: 270px;
+  display: grid;
+  align-content: space-between;
+  justify-items: center;
+  padding: 32px;
+  border-radius: 58px;
+  background: #ffffff;
+  text-align: center;
+  box-shadow: 0 20px 34px rgba(39, 41, 48, 0.08);
+}
+
+.todo-card small {
+  color: #6a6b72;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.todo-card strong {
+  max-width: 320px;
+  font-size: 28px;
+  line-height: 1.14;
+}
+
+.todo-card svg {
+  color: var(--accent);
+}
+
+.accent-blue {
+  --accent: #0874d9;
+}
+
+.accent-green {
+  --accent: #0a8967;
+}
+
+.forecast-pill,
+.task-row,
+.material-row,
+.account-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 18px;
+  border-radius: 40px;
+  color: #070707;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 30px rgba(39, 41, 48, 0.07);
+}
+
+.forecast-pill {
+  min-height: 112px;
+  padding: 22px 28px;
+}
+
+.forecast-pill strong,
+.task-row strong,
+.material-row strong,
+.account-row strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 28px;
+  line-height: 1.14;
+}
+
+.forecast-pill p,
+.task-row small,
+.material-row small,
+.account-row small {
+  color: #686970;
+  font-size: 20px;
+}
+
+.glass-icon,
+.row-icon,
+.course-logo {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  color: #0874d9;
+  background: #eef5ff;
+  font-size: 36px;
+  font-weight: 900;
+}
+
+.section-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 10px 4px;
+}
+
+.section-line h2 {
+  font-size: 32px;
+}
+
+.section-line span {
+  color: #08795d;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.list-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.task-row,
+.account-row {
+  min-height: 118px;
+  padding: 24px 30px;
+  text-align: left;
+}
+
+.task-row.done {
+  opacity: 0.72;
+}
+
+.task-row.done strong {
+  text-decoration: line-through;
+}
+
+.material-row {
+  align-items: flex-start;
+  padding: 24px 30px;
+}
+
+.material-row > div:nth-child(2) {
+  min-width: 0;
+}
+
+.material-row > span {
+  color: #0874d9;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.account-row.active {
+  box-shadow: 0 0 0 3px rgba(8, 116, 217, 0.18), 0 18px 30px rgba(39, 41, 48, 0.07);
+}
+
+.glass-form,
+.ask-surface {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  border-radius: 42px;
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 20px 34px rgba(39, 41, 48, 0.08);
+}
+
+.glass-form h2,
+.ask-surface h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 28px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 58px;
+  border: 0;
+  border-radius: 24px;
+  padding: 0 18px;
+  color: #060606;
+  background: #f0f1f5;
+  outline: 0;
+  font-weight: 750;
+}
+
+textarea {
+  min-height: 116px;
+  padding-top: 18px;
+  resize: vertical;
+}
+
+input::file-selector-button {
+  margin-right: 12px;
+  border: 0;
+  border-radius: 18px;
+  padding: 10px 14px;
+  color: #ffffff;
+  background: #0874d9;
+  font-weight: 900;
+}
+
+.glass-form button,
+.ask-surface button,
+.question-box button {
+  min-height: 58px;
+  border-radius: 24px;
+  padding: 0 22px;
+  color: #ffffff;
+  background: #0874d9;
+  font-weight: 900;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.question-box {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 18px;
+  border-radius: 30px;
+  background: #f0f1f5;
+}
+
+.question-box input {
+  min-height: 48px;
+  padding: 0;
+  background: transparent;
+}
+
+.question-box button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.answer-box {
+  display: grid;
+  gap: 12px;
+  padding: 28px;
+  border-radius: 38px;
+  background: #ffffff;
+  box-shadow: 0 20px 34px rgba(39, 41, 48, 0.08);
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.answer-box small {
+  color: #0874d9;
+  font-weight: 900;
+}
+
+.answer-box p {
+  font-size: 20px;
+}
+
+.chunk-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.chunk-pill {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 22px;
+  background: #f0f5ff;
+}
+
+.chunk-pill span {
+  font-weight: 900;
+}
+
+.chunk-pill small {
+  font-size: 16px;
+}
+
+.empty {
+  padding: 26px 28px;
+  border-radius: 34px;
+  color: #686970;
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 20;
+  width: min(calc(100% - 40px), 860px);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 24px 48px rgba(26, 28, 35, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.75);
+  transform: translateX(-50%);
+  backdrop-filter: blur(20px);
+}
+
+.dock button {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 13px 8px 10px;
+  color: #111111;
+  background: transparent;
+  font-weight: 900;
+}
+
+.dock button span {
+  display: grid;
+  place-items: center;
+}
+
+.dock button small {
+  max-width: 100%;
+  color: inherit;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock button.active {
+  color: #0874d9;
+  background: #e4e5e9;
+}
+
+@media (max-width: 720px) {
+  .app {
+    padding: 32px 18px 126px;
+  }
+
+  .phone-top {
+    grid-template-columns: 76px 1fr 152px;
+    gap: 10px;
+  }
+
+  .bubble-button {
+    width: 58px;
+    height: 58px;
+  }
+
+  .top-actions {
+    gap: 10px;
+  }
+
+  .brand-lockup strong {
+    display: none;
+  }
+
+  .hero-balance {
+    padding-top: 38px;
+  }
+
+  .segmented-control {
+    margin-bottom: 28px;
+  }
+
+  .segmented-control button {
+    min-height: 62px;
+    font-size: 21px;
+  }
+
+  .todo-carousel {
+    grid-auto-columns: minmax(245px, 78vw);
+  }
+
+  .forecast-pill,
+  .task-row,
+  .material-row,
+  .account-row,
+  .install-card {
+    grid-template-columns: 58px 1fr auto;
+    border-radius: 34px;
+    padding: 20px;
+  }
+
+  .install-card {
+    grid-template-columns: 58px 1fr;
+  }
+
+  .install-card button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .forecast-pill strong,
+  .task-row strong,
+  .material-row strong,
+  .account-row strong {
+    font-size: 21px;
+  }
+
+  .forecast-pill p,
+  .task-row small,
+  .material-row small,
+  .account-row small {
+    font-size: 16px;
+  }
+
+  .glass-icon,
+  .row-icon,
+  .course-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+  }
+
+  .form-grid,
+  .question-box {
+    grid-template-columns: 1fr;
+  }
+
+  .question-box svg {
+    display: none;
+  }
+
+  .dock {
+    bottom: 18px;
+    width: calc(100% - 28px);
+  }
+
+  .dock button small {
+    font-size: 13px;
+  }
+}
