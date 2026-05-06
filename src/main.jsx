@@ -341,6 +341,13 @@ function App() {
     }
   }
 
+  async function clearSharedImport() {
+    if (!sharedFiles.length) return;
+    await clearSharedFiles(sharedFiles.map((item) => item.id));
+    setSharedFiles([]);
+    setNotice("Cleared shared files.");
+  }
+
   const dockItems = [
     { id: "today", label: "Today", icon: CalendarCheck },
     { id: "materials", label: "Files", icon: FolderOpen },
@@ -474,6 +481,9 @@ function App() {
                 <button type="button" disabled={importingShare || !selectedCourseId} onClick={importSharedFiles}>
                   {importingShare ? "Importing" : "Import"}
                 </button>
+                <button className="ghost-action" type="button" disabled={importingShare} onClick={clearSharedImport}>
+                  Clear
+                </button>
               </article>
             )}
 
@@ -520,7 +530,22 @@ function App() {
                 </div>
                 <div className="compact-submit">
                   <p className="file-count">{uploadForm.files.length ? `${uploadForm.files.length} selected` : "PDF, DOCX, images"}</p>
-                  <button disabled={!selectedCourseId}>Upload</button>
+                  <div className="submit-actions">
+                    {uploadForm.files.length > 0 && (
+                      <button
+                        className="ghost-action"
+                        type="button"
+                        onClick={() => {
+                          setUploadForm({ ...uploadForm, title: "", files: [] });
+                          const input = document.querySelector(".compact-form input[type='file']");
+                          if (input) input.value = "";
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button disabled={!selectedCourseId}>Upload</button>
+                  </div>
                 </div>
               </form>
             )}
