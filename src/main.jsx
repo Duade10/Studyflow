@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BookOpen,
@@ -103,6 +103,7 @@ function App() {
   const [importingShare, setImportingShare] = useState(false);
   const [filesPanel, setFilesPanel] = useState("upload");
   const [expandedMaterialId, setExpandedMaterialId] = useState(null);
+  const [viewerMaterial, setViewerMaterial] = useState(null);
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId),
@@ -629,7 +630,11 @@ function App() {
                       <Layers size={18} />
                     </button>
                     {(material.original_filename.toLowerCase().endsWith(".pdf") || material.original_filename.toLowerCase().endsWith(".docx") || material.original_filename.toLowerCase().endsWith(".doc")) && (
-                      <button type="button" aria-label={`Open ${material.title}`} onClick={() => openMaterialExternal(material)}>
+                      <button
+                        type="button"
+                        aria-label={`Open ${material.title}`}
+                        onClick={() => material.original_filename.toLowerCase().endsWith(".pdf") ? setViewerMaterial(material) : openMaterialExternal(material)}
+                      >
                         <BookOpen size={18} />
                       </button>
                     )}
@@ -746,6 +751,14 @@ function App() {
         )}
       </section>
 
+      {viewerMaterial && (
+        <PdfReader
+          material={viewerMaterial}
+          fileUrl={`${API_BASE}/materials/${viewerMaterial.id}/file`}
+          onClose={() => setViewerMaterial(null)}
+        />
+      )}
+
       <nav className="dock" aria-label="Primary">
         {dockItems.map((item) => {
           const Icon = item.icon;
@@ -763,6 +776,100 @@ function App() {
         })}
       </nav>
     </main>
+  );
+}
+
+function PdfReader({ material, fileUrl, onClose }) {
+  const canvasRef = useRef(null);
+  const renderTaskRef = useRef(null);
+  const [pdf, setPdf] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [scale, setScale] = useState(1.1);
+  const [status, setStatus] = useState("Loading PDF...");
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("Loading PDF...");
+    Promise.all([
+      import("pdfjs-dist"),
+      import("pdfjs-dist/build/pdf.worker.mjs?url"),
+    ])
+      .then(([pdfjsLib, worker]) => {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
+        return pdfjsLib.getDocument(fileUrl).promise;
+      })
+      .then((document) => {
+        if (cancelled) return;
+        setPdf(document);
+        setPageCount(document.numPages);
+        setPageNumber(1);
+        setStatus("");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("Could not load this PDF.");
+      });
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel();
+    };
+  }, [fileUrl]);
+
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+    let cancelled = false;
+
+    async function renderPage() {
+      setStatus("Rendering page...");
+      renderTaskRef.current?.cancel();
+      const page = await pdf.getPage(pageNumber);
+      if (cancelled) return;
+      const viewport = page.getViewport({ scale });
+      const canvas = canvasRef.current;
+      const context = canvas.getContext("2d");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      renderTaskRef.current = page.render({ canvasContext: context, viewport });
+      await renderTaskRef.current.promise.catch((error) => {
+        if (error?.name !== "RenderingCancelledException") throw error;
+      });
+      if (!cancelled) setStatus("");
+    }
+
+    renderPage().catch(() => {
+      if (!cancelled) setStatus("Could not render this page.");
+    });
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel();
+    };
+  }, [pdf, pageNumber, scale]);
+
+  return (
+    <section className="pdf-reader" role="dialog" aria-label={`Reading ${material.title}`}>
+      <div className="pdf-reader-bar">
+        <div>
+          <strong>{material.title}</strong>
+          <small>Page {pageNumber} of {pageCount || "..."}</small>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Close PDF reader">
+          <X size={21} />
+        </button>
+      </div>
+      <div className="pdf-reader-stage">
+        {status && <p className="pdf-status">{status}</p>}
+        <canvas ref={canvasRef} />
+      </div>
+      <div className="pdf-reader-controls">
+        <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>Prev</button>
+        <button type="button" onClick={() => setScale((value) => Math.max(0.75, value - 0.15))}>-</button>
+        <span>{Math.round(scale * 100)}%</span>
+        <button type="button" onClick={() => setScale((value) => Math.min(2, value + 0.15))}>+</button>
+        <button type="button" disabled={pageNumber >= pageCount} onClick={() => setPageNumber((page) => Math.min(pageCount, page + 1))}>Next</button>
+      </div>
+    </section>
   );
 }
 
