@@ -12,6 +12,7 @@ import re
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -729,6 +730,26 @@ def delete_material(material_id: int) -> dict:
         stored_path.unlink()
 
     return {"deleted": True, "id": material_id}
+
+
+@app.get("/materials/{material_id}/file")
+def get_material_file(material_id: int) -> FileResponse:
+    with db() as connection:
+        material = connection.execute("SELECT * FROM materials WHERE id = ?", (material_id,)).fetchone()
+        if material is None:
+            raise HTTPException(status_code=404, detail="Material not found")
+
+    stored_path = Path(material["stored_path"])
+    if not stored_path.exists() or UPLOAD_DIR not in stored_path.resolve().parents:
+        raise HTTPException(status_code=404, detail="Stored file not found")
+
+    media_type = "application/pdf" if stored_path.suffix.lower() == ".pdf" else "application/octet-stream"
+    return FileResponse(
+        stored_path,
+        media_type=media_type,
+        filename=material["original_filename"],
+        headers={"Content-Disposition": f"inline; filename=\"{material['original_filename']}\""},
+    )
 
 
 @app.post("/materials/{material_id}/chunks")
