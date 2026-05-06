@@ -315,7 +315,7 @@ function App() {
   }
 
   async function openMaterialExternal(material) {
-    window.location.href = `${API_BASE}/materials/${material.id}/file?download=1`;
+    window.location.href = `${API_BASE}/materials/${material.id}/file`;
   }
 
   async function shareMaterial(material) {

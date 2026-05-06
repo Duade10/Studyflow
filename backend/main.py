@@ -750,7 +750,7 @@ def get_material_file(material_id: int, download: bool = False) -> FileResponse:
         ".doc": "application/msword",
     }
     media_type = media_types.get(suffix, "application/octet-stream")
-    disposition = "attachment" if download else ("inline" if suffix == ".pdf" else "attachment")
+    disposition = "attachment" if download else "inline"
     return FileResponse(
         stored_path,
         media_type=media_type,
