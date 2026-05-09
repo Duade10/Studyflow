@@ -1,38 +1,24 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  BookOpen,
   Bot,
-  CalendarCheck,
-  Check,
-  CircleUserRound,
-  FileQuestion,
-  FileUp,
-  FlaskConical,
-  FolderOpen,
-  GraduationCap,
-  HelpCircle,
-  Layers,
+  CheckCircle2,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  Paperclip,
   Plus,
-  Search,
   Send,
-  Share2,
   Sparkles,
-  Smartphone,
   Trash2,
+  UploadCloud,
+  X,
 } from "lucide-react";
-import "./styles.css";
+import "./globals.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const SHARE_DB_NAME = "studyflow-share-target";
 const SHARE_STORE_NAME = "shared-files";
-const compactName = (name = "", max = 34) => {
-  if (name.length <= max) return name;
-  const dot = name.lastIndexOf(".");
-  const extension = dot > -1 ? name.slice(dot) : "";
-  const base = dot > -1 ? name.slice(0, dot) : name;
-  return `${base.slice(0, Math.max(12, max - extension.length - 3))}...${extension}`;
-};
 
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, options);
@@ -41,6 +27,14 @@ async function api(path, options = {}) {
     throw new Error(error.detail || "Request failed");
   }
   return response.json();
+}
+
+function compactName(name = "", max = 28) {
+  if (name.length <= max) return name;
+  const dot = name.lastIndexOf(".");
+  const ext = dot > -1 ? name.slice(dot) : "";
+  const base = dot > -1 ? name.slice(0, dot) : name;
+  return `${base.slice(0, Math.max(10, max - ext.length - 3))}...${ext}`;
 }
 
 function openShareDb() {
@@ -57,17 +51,16 @@ function openShareDb() {
 async function readSharedFiles() {
   if (!("indexedDB" in window)) return [];
   const db = await openShareDb();
-  const files = await new Promise((resolve, reject) => {
+  const rows = await new Promise((resolve, reject) => {
     const transaction = db.transaction(SHARE_STORE_NAME, "readonly");
     const request = transaction.objectStore(SHARE_STORE_NAME).getAll();
     request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(transaction.error);
   });
   db.close();
-  return files.map((item) => ({
+  return rows.map((item) => ({
     id: item.id,
     file: new File([item.data], item.name, { type: item.type }),
-    createdAt: item.createdAt,
   }));
 }
 
@@ -84,219 +77,154 @@ async function clearSharedFiles(ids) {
 }
 
 function App() {
-  const [courses, setCourses] = useState([]);
-  const [selectedCourseId, setSelectedCourseId] = useState(null);
-  const [courseDetail, setCourseDetail] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [notice, setNotice] = useState("");
-  const [activeView, setActiveView] = useState("today");
-  const [courseForm, setCourseForm] = useState({ name: "", code: "" });
-  const [uploadForm, setUploadForm] = useState({ title: "", material_type: "slides", files: [] });
-  const [chunkForm, setChunkForm] = useState({ material_id: "", title: "", difficulty: "medium", notes: "" });
-  const [askForm, setAskForm] = useState({ material_id: "", question: "" });
+  const [courseId, setCourseId] = useState(null);
+  const [materials, setMaterials] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [pickedFiles, setPickedFiles] = useState([]);
+  const [sharedFiles, setSharedFiles] = useState([]);
+  const [pasteText, setPasteText] = useState("");
+  const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [asking, setAsking] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [sharedFiles, setSharedFiles] = useState([]);
-  const [shareMaterialType, setShareMaterialType] = useState("slides");
-  const [importingShare, setImportingShare] = useState(false);
-  const [filesPanel, setFilesPanel] = useState("upload");
-  const [expandedMaterialId, setExpandedMaterialId] = useState(null);
-  const [viewerMaterial, setViewerMaterial] = useState(null);
 
-  const selectedCourse = useMemo(
-    () => courses.find((course) => course.id === selectedCourseId),
-    [courses, selectedCourseId]
+  const selectedMaterials = useMemo(
+    () => materials.filter((material) => selectedIds.includes(material.id)),
+    [materials, selectedIds]
   );
 
-  const doneCount = tasks.filter((task) => task.status === "done").length;
-  const materialCount = courseDetail?.materials?.length || 0;
-  const chunkCount = courseDetail?.chunks?.length || 0;
-
-  async function refresh() {
-    const [courseRows, taskRows] = await Promise.all([api("/courses"), api("/tasks")]);
-    setCourses(courseRows);
-    setTasks(taskRows);
-    if (!selectedCourseId && courseRows.length > 0) {
-      setSelectedCourseId(courseRows[0].id);
+  async function ensureWorkspace() {
+    const courses = await api("/courses");
+    let workspace = courses.find((course) => course.name === "Ask Workspace") || courses[0];
+    if (!workspace) {
+      workspace = await api("/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Ask Workspace", code: "ASK" }),
+      });
     }
+    setCourseId(workspace.id);
+    await loadMaterials(workspace.id);
   }
 
-  async function refreshCourse(courseId = selectedCourseId) {
-    if (!courseId) return;
-    setCourseDetail(await api(`/courses/${courseId}`));
+  async function loadMaterials(id = courseId) {
+    if (!id) return;
+    const detail = await api(`/courses/${id}`);
+    setMaterials(detail.materials || []);
   }
 
   useEffect(() => {
-    refresh().catch((error) => setNotice(error.message));
+    ensureWorkspace().catch((error) => setNotice(error.message));
   }, []);
-
-  useEffect(() => {
-    refreshCourse(selectedCourseId).catch((error) => setNotice(error.message));
-  }, [selectedCourseId]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").then((registration) => registration.update()).catch(() => {});
-      navigator.serviceWorker.addEventListener("message", (event) => {
-        if (event.data?.type === "STUDYFLOW_UPDATED" && !sessionStorage.getItem("studyflow-reloaded")) {
-          sessionStorage.setItem("studyflow-reloaded", "1");
-          window.location.reload();
-        }
-      });
     }
-
-    const standalone =
-      window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone;
-    setIsInstalled(Boolean(standalone));
 
     function handleBeforeInstallPrompt(event) {
       event.preventDefault();
       setInstallPrompt(event);
     }
 
-    function handleInstalled() {
-      setIsInstalled(true);
-      setInstallPrompt(null);
-      setNotice("StudyFlow installed.");
-    }
-
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    window.addEventListener("appinstalled", handleInstalled);
-
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", handleInstalled);
-    };
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
   }, []);
 
   useEffect(() => {
     readSharedFiles()
       .then((files) => {
-        setSharedFiles(files);
         if (files.length) {
-          setActiveView("materials");
-          setNotice(`${files.length} shared document${files.length === 1 ? "" : "s"} ready to import.`);
+          setSharedFiles(files);
+          setNotice(`${files.length} shared file${files.length === 1 ? "" : "s"} ready to import.`);
           window.history.replaceState({}, "", "/");
         }
       })
       .catch(() => {});
   }, []);
 
-  async function installApp() {
-    if (!installPrompt) {
-      setNotice("Use your browser menu to install StudyFlow on this device.");
-      return;
-    }
-    installPrompt.prompt();
-    await installPrompt.userChoice;
-    setInstallPrompt(null);
+  function toggleSelected(id) {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
   }
 
-  async function createCourse(event) {
-    event.preventDefault();
-    if (!courseForm.name.trim()) return;
-    try {
-      const course = await api("/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(courseForm),
-      });
-      setCourseForm({ name: "", code: "" });
-      setSelectedCourseId(course.id);
-      setActiveView("materials");
-      setNotice("Course created.");
-      await refresh();
-    } catch (error) {
-      setNotice(error.message);
+  async function uploadFiles(files, title = "") {
+    if (!files.length) return;
+    if (!courseId) {
+      setNotice("Workspace is still loading. Try again in a moment.");
+      return;
     }
-  }
 
-  async function uploadMaterial(event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    if (!selectedCourseId) {
-      setNotice("Create or select a course before uploading material.");
-      return;
-    }
-    if (!uploadForm.files.length) {
-      setNotice("Choose at least one file before uploading.");
-      return;
-    }
-    if (uploadForm.files.length === 1 && !uploadForm.title.trim()) {
-      setNotice("Add a material title before uploading.");
-      return;
-    }
+    setUploading(true);
     try {
       const body = new FormData();
-      body.append("course_id", selectedCourseId);
-      body.append("title", uploadForm.title);
-      body.append("material_type", uploadForm.material_type);
-      uploadForm.files.forEach((file) => body.append("files", file));
+      body.append("course_id", courseId);
+      body.append("title", title);
+      body.append("material_type", "slides");
+      files.forEach((file) => body.append("files", file));
       const result = await api("/materials/bulk", { method: "POST", body });
-      setUploadForm({ title: "", material_type: "slides", files: [] });
-      form.reset();
-      setNotice(`Processed ${result.total_files} document${result.total_files === 1 ? "" : "s"} and generated ${result.total_generated} item${result.total_generated === 1 ? "" : "s"}.`);
-      await refreshCourse();
-      await refresh();
+      const newIds = result.uploaded.map((item) => item.id);
+      setSelectedIds((current) => [...new Set([...current, ...newIds])]);
+      setPickedFiles([]);
+      await loadMaterials(courseId);
+      setNotice(`Imported ${result.total_files} source${result.total_files === 1 ? "" : "s"}.`);
     } catch (error) {
       setNotice(error.message);
+    } finally {
+      setUploading(false);
     }
   }
 
-  async function createChunk(event) {
+  async function uploadPickedFiles(event) {
     event.preventDefault();
-    if (!chunkForm.material_id || !chunkForm.title.trim()) return;
-    try {
-      const chunk = await api(`/materials/${chunkForm.material_id}/chunks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: chunkForm.title,
-          difficulty: chunkForm.difficulty,
-          notes: chunkForm.notes,
-        }),
-      });
-      await api(`/chunks/${chunk.id}/generate-task`, { method: "POST" });
-      setChunkForm({ ...chunkForm, title: "", notes: "" });
-      setNotice("Section added and task generated.");
-      await refreshCourse();
-      await refresh();
-    } catch (error) {
-      setNotice(error.message);
-    }
+    await uploadFiles(pickedFiles);
   }
 
-  async function toggleTask(task) {
-    await api(`/tasks/${task.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: task.status === "done" ? "todo" : "done" }),
+  async function importSharedFiles() {
+    await uploadFiles(sharedFiles.map((item) => item.file));
+    await clearSharedFiles(sharedFiles.map((item) => item.id));
+    setSharedFiles([]);
+  }
+
+  async function clearSharedImport() {
+    await clearSharedFiles(sharedFiles.map((item) => item.id));
+    setSharedFiles([]);
+    setNotice("Shared files cleared.");
+  }
+
+  async function importPaste() {
+    if (!pasteText.trim()) return;
+    const file = new File([pasteText.trim()], `pasted-note-${Date.now()}.txt`, {
+      type: "text/plain",
     });
-    await refresh();
+    await uploadFiles([file], "Pasted note");
+    setPasteText("");
   }
 
-  async function askMaterial(event) {
+  async function askQuestion(event) {
     event.preventDefault();
-    if (!askForm.material_id) {
-      setNotice("Choose a material to ask about.");
-      return;
-    }
-    if (!askForm.question.trim()) {
+    if (!question.trim()) {
       setNotice("Type a question first.");
       return;
     }
+    if (!selectedIds.length) {
+      setNotice("Choose at least one source to ask about.");
+      return;
+    }
+
     setAsking(true);
     setAnswer(null);
     try {
-      const response = await api(`/materials/${askForm.material_id}/ask`, {
+      const response = await api("/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: askForm.question }),
+        body: JSON.stringify({ material_ids: selectedIds, question }),
       });
       setAnswer(response);
-      setNotice(response.mode === "ai" ? "Answered from your material." : "Answered with extracted text.");
+      setNotice(response.mode === "ai" ? "Answered with AI from your selected sources." : "Answered from extracted text.");
     } catch (error) {
       setNotice(error.message);
     } finally {
@@ -305,600 +233,277 @@ function App() {
   }
 
   async function deleteMaterial(material) {
-    const confirmed = window.confirm(`Delete "${material.title}" and its generated tasks?`);
-    if (!confirmed) return;
-    try {
-      await api(`/materials/${material.id}`, { method: "DELETE" });
-      setNotice(`Deleted ${material.title}.`);
-      if (askForm.material_id === String(material.id)) {
-        setAskForm({ material_id: "", question: "" });
-        setAnswer(null);
-      }
-      await refreshCourse();
-      await refresh();
-    } catch (error) {
-      setNotice(error.message);
-    }
+    await api(`/materials/${material.id}`, { method: "DELETE" });
+    setMaterials((current) => current.filter((item) => item.id !== material.id));
+    setSelectedIds((current) => current.filter((id) => id !== material.id));
+    setNotice(`Deleted ${material.title}.`);
   }
 
-  async function openMaterialExternal(material) {
-    window.location.href = `${API_BASE}/materials/${material.id}/file`;
-  }
-
-  async function shareMaterial(material) {
-    const fileUrl = `${API_BASE}/materials/${material.id}/file`;
-    try {
-      const response = await fetch(fileUrl);
-      if (!response.ok) throw new Error("Could not fetch file");
-      const blob = await response.blob();
-      const file = new File([blob], material.original_filename, {
-        type: blob.type || "application/octet-stream",
-      });
-
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: material.title,
-          text: "Open this study material",
-        });
-        return;
-      }
-
-      setNotice("This device cannot share files directly. Use Open with instead.");
-    } catch (error) {
-      setNotice(error.message || "Could not share file.");
-    }
-  }
-
-  async function importSharedFiles() {
-    if (!selectedCourseId) {
-      setNotice("Create or select a course before importing shared files.");
+  async function installApp() {
+    if (!installPrompt) {
+      setNotice("Use your browser menu to install StudyFlow on this device.");
       return;
     }
-    if (!sharedFiles.length) return;
-
-    setImportingShare(true);
-    try {
-      const body = new FormData();
-      body.append("course_id", selectedCourseId);
-      body.append("material_type", shareMaterialType);
-      sharedFiles.forEach((item) => body.append("files", item.file));
-      const result = await api("/materials/bulk", { method: "POST", body });
-      await clearSharedFiles(sharedFiles.map((item) => item.id));
-      setSharedFiles([]);
-      setNotice(`Imported ${result.total_files} shared document${result.total_files === 1 ? "" : "s"} into Files.`);
-      await refreshCourse();
-      await refresh();
-    } catch (error) {
-      setNotice(error.message);
-    } finally {
-      setImportingShare(false);
-    }
+    await installPrompt.prompt();
+    setInstallPrompt(null);
   }
-
-  async function clearSharedImport() {
-    if (!sharedFiles.length) return;
-    await clearSharedFiles(sharedFiles.map((item) => item.id));
-    setSharedFiles([]);
-    setNotice("Cleared shared files.");
-  }
-
-  const dockItems = [
-    { id: "today", label: "Today", icon: CalendarCheck },
-    { id: "materials", label: "Files", icon: FolderOpen },
-    { id: "ask", label: "Ask", icon: Bot },
-    { id: "courses", label: "Courses", icon: GraduationCap },
-  ];
 
   return (
-    <main className="app">
-      <header className="phone-top">
-        <button className="bubble-button" type="button" aria-label="Profile">
-          <CircleUserRound size={30} />
-        </button>
-        <div className="brand-lockup">
-          <div className="brand-flower"><Sparkles size={30} /></div>
-          <strong>StudyFlow</strong>
-        </div>
-        <div className="top-actions">
-          <button className="bubble-button" type="button" aria-label="New course" onClick={() => setActiveView("courses")}>
-            <Plus size={30} />
-          </button>
-          <button className="bubble-button" type="button" aria-label="Ask" onClick={() => setActiveView("ask")}>
-            <Search size={30} />
-          </button>
-        </div>
-      </header>
-
-      <section className="hero-balance">
-        <div className="segmented-control">
-          <button className={activeView === "today" ? "selected" : ""} onClick={() => setActiveView("today")} type="button">
-            Today
-          </button>
-          <button className={activeView === "materials" ? "selected" : ""} onClick={() => setActiveView("materials")} type="button">
-            Materials
-          </button>
-        </div>
-        <p>{selectedCourse ? selectedCourse.name : "No course selected"}</p>
-        <h1>{doneCount}/{tasks.length}</h1>
-        <span>tasks complete</span>
-      </section>
-
-      {courses.length > 0 && (
-        <nav className="course-tabs" aria-label="Courses">
-          {courses.map((course) => (
-            <button
-              className={course.id === selectedCourseId ? "active" : ""}
-              key={course.id}
-              onClick={() => setSelectedCourseId(course.id)}
-              type="button"
-            >
-              {course.name}
-            </button>
-          ))}
-        </nav>
-      )}
-
-      {notice && <div className="notice">{notice}</div>}
-
-      {!isInstalled && (
-        <article className="install-card">
-          <span className="row-icon"><Smartphone size={23} /></span>
-          <div>
-            <strong>Install StudyFlow</strong>
-            <p>Keep the MVP on your home screen for quick study sessions.</p>
+    <main className="min-h-screen bg-[#0b0d10] text-white">
+      <div className="lab-bg fixed inset-0 overflow-hidden" />
+      <section className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-black shadow-xl">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-white/40">StudyFlow</p>
+              <h1 className="text-xl font-semibold tracking-tight">Ask your study materials</h1>
+            </div>
           </div>
-          <button type="button" onClick={installApp}>Install</button>
-        </article>
-      )}
+          <button
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 backdrop-blur hover:bg-white/10"
+            type="button"
+            onClick={installApp}
+          >
+            Install
+          </button>
+        </header>
 
-      <section className="screen-panel">
-        {activeView === "today" && (
-          <div className="view-stack">
-            <div className="todo-carousel">
-              <article className="todo-card accent-blue">
-                <small>Study</small>
-                <strong>{tasks.find((task) => task.status !== "done")?.title || "Upload slides to begin"}</strong>
-                <BookOpen size={64} />
-              </article>
-              <article className="todo-card accent-green">
-                <small>Materials</small>
-                <strong>{materialCount} files</strong>
-                <FolderOpen size={64} />
-              </article>
-            </div>
-
-            <article className="forecast-pill">
-              <span className="glass-icon">◌</span>
-              <div>
-                <strong>Upcoming</strong>
-                <p>{chunkCount ? `${chunkCount} generated sections waiting` : "Upload a PDF to generate sections"}</p>
-              </div>
-            </article>
-
-            <div className="section-line">
-              <h2>Today</h2>
-              <span>{doneCount}/{tasks.length}</span>
-            </div>
-
-            <div className="list-stack">
-              {tasks.length === 0 && <p className="empty">No tasks yet.</p>}
-              {tasks.map((task) => (
-                <button className={`task-row ${task.status}`} key={task.id} onClick={() => toggleTask(task)} type="button">
-                  <span className="row-icon">
-                    {task.task_type === "practical" ? <FlaskConical size={22} /> : task.task_type === "practice" ? <HelpCircle size={22} /> : <BookOpen size={22} />}
-                  </span>
-                  <span>
-                    <strong>{task.title}</strong>
-                    <small>{task.course_name}</small>
-                  </span>
-                  <Check size={22} />
-                </button>
-              ))}
-            </div>
+        {notice && (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/75">
+            {notice}
           </div>
         )}
 
-        {activeView === "materials" && (
-          <div className="view-stack">
+        <div className="grid flex-1 gap-4 py-5 lg:grid-cols-[380px_1fr]">
+          <aside className="space-y-4">
             {sharedFiles.length > 0 && (
-              <article className="shared-import-card">
-                <div className="row-icon"><FileUp size={22} /></div>
-                <div>
-                  <strong>Shared from WhatsApp</strong>
-                  <p>{sharedFiles.length} file{sharedFiles.length === 1 ? "" : "s"} · {sharedFiles.map((item) => compactName(item.file.name, 22)).join(", ")}</p>
-                </div>
-                <select value={shareMaterialType} onChange={(event) => setShareMaterialType(event.target.value)}>
-                  <option value="slides">Slides / Notes</option>
-                  <option value="past_questions">Past Questions</option>
-                  <option value="practical">Practical Guide</option>
-                </select>
-                <button type="button" disabled={importingShare || !selectedCourseId} onClick={importSharedFiles}>
-                  {importingShare ? "Importing" : "Import"}
-                </button>
-                <button className="ghost-action" type="button" disabled={importingShare} onClick={clearSharedImport}>
-                  Clear
-                </button>
-              </article>
-            )}
-
-            <div className="files-actions">
-              <button className={filesPanel === "upload" ? "active" : ""} type="button" onClick={() => setFilesPanel(filesPanel === "upload" ? "" : "upload")}>
-                <FileUp size={18} />
-                Upload
-              </button>
-              <button className={filesPanel === "section" ? "active" : ""} type="button" onClick={() => setFilesPanel(filesPanel === "section" ? "" : "section")}>
-                <Layers size={18} />
-                Section
-              </button>
-            </div>
-
-            {filesPanel === "upload" && (
-              <form className="glass-form compact-form" onSubmit={uploadMaterial}>
-                <input
-                  placeholder="Title, optional for multiple files"
-                  value={uploadForm.title}
-                  onChange={(event) => setUploadForm({ ...uploadForm, title: event.target.value })}
-                  disabled={!selectedCourseId}
-                />
-                <div className="form-grid">
-                  <select
-                    value={uploadForm.material_type}
-                    onChange={(event) => setUploadForm({ ...uploadForm, material_type: event.target.value })}
-                    disabled={!selectedCourseId}
-                  >
-                    <option value="slides">Slides / Notes</option>
-                    <option value="past_questions">Past Questions</option>
-                    <option value="practical">Practical Guide</option>
-                  </select>
-                  <input
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,image/*"
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files || []);
-                      const inferredTitle = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, "") : "";
-                      setUploadForm({ ...uploadForm, files, title: uploadForm.title || inferredTitle });
-                    }}
-                    disabled={!selectedCourseId}
-                  />
-                </div>
-                <div className="compact-submit">
-                  <p className="file-count">{uploadForm.files.length ? `${uploadForm.files.length} selected` : "PDF, DOCX, images"}</p>
-                  <div className="submit-actions">
-                    {uploadForm.files.length > 0 && (
-                      <button
-                        className="ghost-action"
-                        type="button"
-                        onClick={() => {
-                          setUploadForm({ ...uploadForm, title: "", files: [] });
-                          const input = document.querySelector(".compact-form input[type='file']");
-                          if (input) input.value = "";
-                        }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                    <button disabled={!selectedCourseId}>Upload</button>
+              <section className="rounded-[2rem] border border-emerald-400/20 bg-emerald-400/10 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-emerald-300 p-2 text-black">
+                    <UploadCloud className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-semibold">Shared into StudyFlow</h2>
+                    <p className="truncate text-sm text-white/60">
+                      {sharedFiles.map((item) => compactName(item.file.name)).join(", ")}
+                    </p>
                   </div>
                 </div>
-              </form>
-            )}
-
-            {filesPanel === "section" && (
-              <form className="glass-form compact-form" onSubmit={createChunk}>
-                <select
-                  value={chunkForm.material_id}
-                  onChange={(event) => setChunkForm({ ...chunkForm, material_id: event.target.value })}
-                  disabled={!courseDetail?.materials?.length}
-                >
-                  <option value="">Choose material</option>
-                  {courseDetail?.materials?.map((material) => (
-                    <option value={material.id} key={material.id}>{material.title}</option>
-                  ))}
-                </select>
-                <div className="form-grid">
-                  <input
-                    placeholder="Topic or section title"
-                    value={chunkForm.title}
-                    onChange={(event) => setChunkForm({ ...chunkForm, title: event.target.value })}
-                  />
-                  <select value={chunkForm.difficulty} onChange={(event) => setChunkForm({ ...chunkForm, difficulty: event.target.value })}>
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-                <div className="compact-submit">
-                  <p className="file-count">Adds a task for today</p>
-                  <button disabled={!courseDetail?.materials?.length}>Save</button>
-                </div>
-              </form>
-            )}
-
-            <div className="section-line">
-              <h2>Material Hub</h2>
-              <span>{chunkCount} sections</span>
-            </div>
-
-            <div className="list-stack">
-              {courseDetail?.materials?.length === 0 && <p className="empty">Materials will appear here.</p>}
-              {courseDetail?.materials?.map((material) => (
-                <article key={material.id} className="material-row">
-                  <div className="row-icon"><FolderOpen size={22} /></div>
-                  <div>
-                    <strong>{material.title}</strong>
-                    <small title={material.original_filename}>{material.material_type.replace("_", " ")} · {compactName(material.original_filename)}</small>
-                  </div>
-                  <div className="material-actions">
-                    <span>{courseDetail.chunks.filter((chunk) => chunk.material_id === material.id).length}</span>
-                    <button type="button" aria-label={`Show details for ${material.title}`} onClick={() => setExpandedMaterialId(expandedMaterialId === material.id ? null : material.id)}>
-                      <Layers size={18} />
-                    </button>
-                    {(material.original_filename.toLowerCase().endsWith(".pdf") || material.original_filename.toLowerCase().endsWith(".docx") || material.original_filename.toLowerCase().endsWith(".doc")) && (
-                      <button
-                        type="button"
-                        aria-label={`Open ${material.title}`}
-                        onClick={() => material.original_filename.toLowerCase().endsWith(".pdf") ? setViewerMaterial(material) : openMaterialExternal(material)}
-                      >
-                        <BookOpen size={18} />
-                      </button>
-                    )}
-                    {(material.original_filename.toLowerCase().endsWith(".pdf") || material.original_filename.toLowerCase().endsWith(".docx") || material.original_filename.toLowerCase().endsWith(".doc")) && (
-                      <button type="button" aria-label={`Share ${material.title}`} onClick={() => shareMaterial(material)}>
-                        <Share2 size={18} />
-                      </button>
-                    )}
-                    <button type="button" aria-label={`Delete ${material.title}`} onClick={() => deleteMaterial(material)}>
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            {expandedMaterialId && (
-              <section className="sections-sheet">
-                <div className="section-line">
-                  <h2>Sections</h2>
-                  <button type="button" onClick={() => setExpandedMaterialId(null)}>Close</button>
-                </div>
-                <div className="section-chip-grid">
-                  {courseDetail.chunks
-                    .filter((chunk) => chunk.material_id === expandedMaterialId)
-                    .map((chunk) => (
-                      <article className="section-chip" key={chunk.id}>
-                        <strong>{chunk.title}</strong>
-                        <small>{chunk.difficulty}{chunk.summary ? ` · ${chunk.summary}` : ""}</small>
-                      </article>
-                    ))}
+                <div className="mt-4 flex gap-2">
+                  <button className="flex-1 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black" onClick={importSharedFiles} type="button">
+                    Import
+                  </button>
+                  <button className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70" onClick={clearSharedImport} type="button">
+                    Clear
+                  </button>
                 </div>
               </section>
             )}
-          </div>
-        )}
 
-        {activeView === "ask" && (
-          <div className="view-stack">
-            <form className="ask-surface" onSubmit={askMaterial}>
-              <h2><Bot size={22} /> Ask Your Material</h2>
-              <select
-                value={askForm.material_id}
-                onChange={(event) => setAskForm({ ...askForm, material_id: event.target.value })}
-                disabled={!courseDetail?.materials?.length}
+            <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 shadow-2xl backdrop-blur">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold">Add sources</h2>
+                <Paperclip className="h-5 w-5 text-white/40" />
+              </div>
+
+              <form className="space-y-3" onSubmit={uploadPickedFiles}>
+                <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-white/15 bg-black/20 px-4 py-5 text-center hover:border-white/35">
+                  <UploadCloud className="mb-2 h-7 w-7 text-sky-300" />
+                  <span className="text-sm font-medium">Upload PDFs, DOCX, PPTX, images</span>
+                  <span className="mt-1 text-xs text-white/40">Multiple files supported</span>
+                  <input
+                    className="sr-only"
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.pptx,.txt,.md,image/*"
+                    onChange={(event) => setPickedFiles(Array.from(event.target.files || []))}
+                  />
+                </label>
+
+                {pickedFiles.length > 0 && (
+                  <div className="space-y-2 rounded-2xl bg-black/20 p-3">
+                    {pickedFiles.map((file) => (
+                      <div className="flex items-center justify-between gap-2 text-sm" key={`${file.name}-${file.lastModified}`}>
+                        <span className="truncate text-white/70">{compactName(file.name, 36)}</span>
+                        <button
+                          className="text-white/40 hover:text-white"
+                          type="button"
+                          onClick={() => setPickedFiles((current) => current.filter((item) => item !== file))}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  className="w-full rounded-full bg-white px-4 py-3 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={uploading || !pickedFiles.length}
+                >
+                  {uploading ? "Importing..." : "Import files"}
+                </button>
+              </form>
+
+              <div className="my-4 h-px bg-white/10" />
+
+              <textarea
+                className="min-h-28 w-full resize-none rounded-[1.5rem] border border-white/10 bg-black/20 p-4 text-sm text-white outline-none placeholder:text-white/30 focus:border-sky-300/50"
+                placeholder="Paste text, notes, copied slides, or a WhatsApp message here..."
+                value={pasteText}
+                onChange={(event) => setPasteText(event.target.value)}
+              />
+              <button
+                className="mt-3 w-full rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 disabled:opacity-40"
+                disabled={!pasteText.trim() || uploading}
+                type="button"
+                onClick={importPaste}
               >
-                <option value="">Choose PDF or material</option>
-                {courseDetail?.materials?.map((material) => (
-                  <option value={material.id} key={material.id}>{material.title}</option>
-                ))}
-              </select>
-              <div className="question-box">
-                <FileQuestion size={20} />
-                <input
-                  placeholder="Explain this topic, quiz me, or make revision notes"
-                  value={askForm.question}
-                  onChange={(event) => setAskForm({ ...askForm, question: event.target.value })}
-                  disabled={!courseDetail?.materials?.length}
-                />
-                <button disabled={asking || !courseDetail?.materials?.length}>
-                  <Send size={18} />
+                Save pasted text
+              </button>
+            </section>
+
+            <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold">Sources</h2>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/60">{selectedIds.length} selected</span>
+              </div>
+              <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                {materials.length === 0 && (
+                  <p className="rounded-2xl bg-black/20 p-4 text-sm text-white/45">Upload something to start asking.</p>
+                )}
+                {materials.map((material) => {
+                  const selected = selectedIds.includes(material.id);
+                  const isImage = /\.(png|jpe?g|webp|bmp|tiff)$/i.test(material.original_filename);
+                  return (
+                    <article
+                      className={`flex items-center gap-3 rounded-2xl border p-3 transition ${
+                        selected ? "border-sky-300/50 bg-sky-300/10" : "border-white/10 bg-black/20"
+                      }`}
+                      key={material.id}
+                    >
+                      <button
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                          selected ? "bg-sky-300 text-black" : "bg-white/5 text-white/50"
+                        }`}
+                        type="button"
+                        onClick={() => toggleSelected(material.id)}
+                      >
+                        {selected ? <CheckCircle2 className="h-5 w-5" /> : isImage ? <ImageIcon className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                      </button>
+                      <button className="min-w-0 flex-1 text-left" type="button" onClick={() => toggleSelected(material.id)}>
+                        <strong className="block truncate text-sm">{material.title}</strong>
+                        <span className="block truncate text-xs text-white/45">{compactName(material.original_filename, 42)}</span>
+                      </button>
+                      <button
+                        className="rounded-full p-2 text-white/35 hover:bg-red-400/10 hover:text-red-200"
+                        type="button"
+                        onClick={() => deleteMaterial(material)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          </aside>
+
+          <section className="flex min-h-[640px] flex-col rounded-[2.4rem] border border-white/10 bg-white/[0.045] p-4 shadow-2xl backdrop-blur lg:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-white/35">Ask</p>
+                <h2 className="text-2xl font-semibold tracking-tight">Chat with selected sources</h2>
+              </div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-300 text-black">
+                <Bot className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="mb-4 flex flex-wrap gap-2">
+              {selectedMaterials.length === 0 ? (
+                <span className="rounded-full bg-black/20 px-3 py-2 text-sm text-white/45">No source selected yet</span>
+              ) : (
+                selectedMaterials.map((material) => (
+                  <button
+                    className="max-w-full rounded-full bg-white/10 px-3 py-2 text-sm text-white/75"
+                    key={material.id}
+                    type="button"
+                    onClick={() => toggleSelected(material.id)}
+                  >
+                    <span className="inline-block max-w-[220px] truncate align-bottom">{material.title}</span>
+                    <X className="ml-2 inline h-3.5 w-3.5" />
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto rounded-[1.75rem] bg-black/20 p-4">
+              {!answer && (
+                <div className="flex h-full min-h-[360px] flex-col items-center justify-center text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white text-black">
+                    <Sparkles className="h-7 w-7" />
+                  </div>
+                  <h3 className="text-xl font-semibold">Ask across PDFs, docs, slides, images, or pasted text.</h3>
+                  <p className="mt-2 max-w-md text-sm leading-6 text-white/45">
+                    Select the exact sources you want, then ask for explanations, summaries, quizzes, weak areas, or revision notes.
+                  </p>
+                </div>
+              )}
+              {answer && (
+                <article className="space-y-4">
+                  <div className="rounded-2xl bg-white/10 p-4">
+                    <p className="text-sm text-white/45">You asked</p>
+                    <p className="mt-1 text-white/85">{answer.question}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-5 text-black">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
+                      {answer.mode} answer
+                    </p>
+                    <p className="whitespace-pre-wrap leading-7">{answer.answer}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {answer.materials?.map((material) => (
+                      <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/55" key={material.id}>
+                        {material.title}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              )}
+            </div>
+
+            <form className="mt-4 rounded-[1.75rem] border border-white/10 bg-black/25 p-3" onSubmit={askQuestion}>
+              <textarea
+                className="min-h-24 w-full resize-none bg-transparent px-2 py-2 text-sm text-white outline-none placeholder:text-white/30"
+                placeholder="Ask a question about the selected sources..."
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    askQuestion(event);
+                  }
+                }}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-white/35">{selectedIds.length} source{selectedIds.length === 1 ? "" : "s"} selected</span>
+                <button
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={asking || !question.trim() || !selectedIds.length}
+                >
+                  {asking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {asking ? "Thinking" : "Ask"}
                 </button>
               </div>
             </form>
-            {answer && (
-              <article className="answer-box">
-                <small>{answer.material_title} · {answer.mode}</small>
-                <p>{answer.answer}</p>
-              </article>
-            )}
-          </div>
-        )}
-
-        {activeView === "courses" && (
-          <div className="view-stack">
-            <form className="glass-form" onSubmit={createCourse}>
-              <h2><Plus size={21} /> New Course</h2>
-              <input
-                placeholder="Anatomy"
-                value={courseForm.name}
-                onChange={(event) => setCourseForm({ ...courseForm, name: event.target.value })}
-              />
-              <input
-                placeholder="Code, optional"
-                value={courseForm.code}
-                onChange={(event) => setCourseForm({ ...courseForm, code: event.target.value })}
-              />
-              <button>Create course</button>
-            </form>
-
-            <div className="section-line">
-              <h2>Courses</h2>
-              <span>{courses.length}</span>
-            </div>
-            <div className="list-stack">
-              {courses.map((course) => (
-                <button
-                  className={`account-row ${course.id === selectedCourseId ? "active" : ""}`}
-                  key={course.id}
-                  onClick={() => setSelectedCourseId(course.id)}
-                  type="button"
-                >
-                  <span className="course-logo"><GraduationCap size={24} /></span>
-                  <span>
-                    <strong>{course.name}</strong>
-                    <small>{course.material_count} files · {course.task_count} tasks</small>
-                  </span>
-                  <Plus size={24} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {viewerMaterial && (
-        <PdfReader
-          material={viewerMaterial}
-          fileUrl={`${API_BASE}/materials/${viewerMaterial.id}/file`}
-          onClose={() => setViewerMaterial(null)}
-        />
-      )}
-
-      <nav className="dock" aria-label="Primary">
-        {dockItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              className={activeView === item.id ? "active" : ""}
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-              type="button"
-            >
-              <span><Icon size={25} /></span>
-              <small>{item.label}</small>
-            </button>
-          );
-        })}
-      </nav>
-    </main>
-  );
-}
-
-function PdfReader({ material, fileUrl, onClose }) {
-  const canvasRef = useRef(null);
-  const renderTaskRef = useRef(null);
-  const [pdf, setPdf] = useState(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageCount, setPageCount] = useState(0);
-  const [scale, setScale] = useState(1.1);
-  const [status, setStatus] = useState("Loading PDF...");
-  const [fallbackMode, setFallbackMode] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("Loading PDF...");
-    Promise.all([
-      import("pdfjs-dist/legacy/build/pdf.min.mjs"),
-      import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
-    ])
-      .then(([pdfjsLib, worker]) => {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
-        return fetch(fileUrl)
-          .then((response) => {
-            if (!response.ok) throw new Error("Could not fetch PDF");
-            return response.arrayBuffer();
-          })
-          .then((data) => pdfjsLib.getDocument({ data }).promise);
-      })
-      .then((document) => {
-        if (cancelled) return;
-        setPdf(document);
-        setPageCount(document.numPages);
-        setPageNumber(1);
-        setStatus("");
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStatus("Could not load with PDF renderer. Showing browser view.");
-          setFallbackMode(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      renderTaskRef.current?.cancel();
-    };
-  }, [fileUrl]);
-
-  useEffect(() => {
-    if (!pdf || !canvasRef.current) return;
-    let cancelled = false;
-
-    async function renderPage() {
-      setStatus("Rendering page...");
-      renderTaskRef.current?.cancel();
-      const page = await pdf.getPage(pageNumber);
-      if (cancelled) return;
-      const viewport = page.getViewport({ scale });
-      const canvas = canvasRef.current;
-      const context = canvas.getContext("2d");
-      const outputScale = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * outputScale);
-      canvas.height = Math.floor(viewport.height * outputScale);
-      canvas.style.width = `${Math.floor(viewport.width)}px`;
-      canvas.style.height = `${Math.floor(viewport.height)}px`;
-      context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-      context.clearRect(0, 0, viewport.width, viewport.height);
-      renderTaskRef.current = page.render({ canvasContext: context, viewport });
-      await renderTaskRef.current.promise.catch((error) => {
-        if (error?.name !== "RenderingCancelledException") throw error;
-      });
-      if (!cancelled) setStatus("");
-    }
-
-    renderPage().catch(() => {
-      if (!cancelled) {
-        setStatus("Could not render this page. Showing browser view.");
-        setFallbackMode(true);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      renderTaskRef.current?.cancel();
-    };
-  }, [pdf, pageNumber, scale]);
-
-  return (
-    <section className="pdf-reader" role="dialog" aria-label={`Reading ${material.title}`}>
-      <div className="pdf-reader-bar">
-        <div>
-          <strong>{material.title}</strong>
-          <small>Page {pageNumber} of {pageCount || "..."}</small>
+          </section>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close PDF reader">
-          <X size={21} />
-        </button>
-      </div>
-      <div className="pdf-reader-stage">
-        {status && <p className="pdf-status">{status}</p>}
-        {fallbackMode ? (
-          <iframe title={material.title} src={fileUrl} />
-        ) : (
-          <canvas ref={canvasRef} />
-        )}
-      </div>
-      {!fallbackMode ? <div className="pdf-reader-controls">
-        <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>Prev</button>
-        <button type="button" onClick={() => setScale((value) => Math.max(0.75, value - 0.15))}>-</button>
-        <span>{Math.round(scale * 100)}%</span>
-        <button type="button" onClick={() => setScale((value) => Math.min(2, value + 0.15))}>+</button>
-        <button type="button" disabled={pageNumber >= pageCount} onClick={() => setPageNumber((page) => Math.min(pageCount, page + 1))}>Next</button>
-      </div> : <div className="pdf-reader-controls">
-        <button type="button" onClick={() => window.location.href = fileUrl}>Open file</button>
-      </div>}
-    </section>
+      </section>
+    </main>
   );
 }
 

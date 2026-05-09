@@ -1,4 +1,4 @@
-const CACHE_NAME = "studyflow-v2";
+const CACHE_NAME = "studyflow-v3";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/pwa-icon.svg"];
 const DB_NAME = "studyflow-share-target";
 const STORE_NAME = "shared-files";

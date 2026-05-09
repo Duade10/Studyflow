@@ -152,6 +152,11 @@ class AskIn(BaseModel):
     question: str
 
 
+class MultiAskIn(BaseModel):
+    material_ids: list[int]
+    question: str
+
+
 def extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
 
@@ -188,6 +193,28 @@ def extract_text(path: Path) -> str:
 
         document = Document(path)
         return "\n".join(paragraph.text for paragraph in document.paragraphs).strip()
+
+    if suffix == ".pptx":
+        try:
+            from pptx import Presentation  # type: ignore
+        except ImportError:
+            return ""
+
+        try:
+            presentation = Presentation(path)
+        except Exception:
+            return ""
+
+        slides: list[str] = []
+        for slide_number, slide in enumerate(presentation.slides, start=1):
+            lines: list[str] = []
+            for shape in slide.shapes:
+                text = getattr(shape, "text", "")
+                if text:
+                    lines.append(text.strip())
+            if lines:
+                slides.append(f"Slide {slide_number}\n" + "\n".join(lines))
+        return "\n\n".join(slides).strip()
 
     if suffix in {".txt", ".md"}:
         return path.read_text(encoding="utf-8", errors="ignore").strip()
@@ -838,6 +865,55 @@ def ask_material(material_id: int, payload: AskIn) -> dict:
         "answer": local_answer(question, context),
         "mode": "local",
         "material_title": material["title"],
+    }
+
+
+@app.post("/ask")
+def ask_across_materials(payload: MultiAskIn) -> dict:
+    question = payload.question.strip()
+    material_ids = list(dict.fromkeys(payload.material_ids))
+    if not question:
+        raise HTTPException(status_code=400, detail="Ask a question first")
+    if not material_ids:
+        raise HTTPException(status_code=400, detail="Choose at least one source")
+    if len(material_ids) > 12:
+        raise HTTPException(status_code=400, detail="Ask can use up to 12 sources at once")
+
+    contexts: list[str] = []
+    materials: list[dict] = []
+    with db() as connection:
+        for material_id in material_ids:
+            material, context = material_context(connection, material_id)
+            materials.append({"id": material["id"], "title": material["title"]})
+            if context:
+                contexts.append(f"Source: {material['title']}\n{context}")
+
+    if not contexts:
+        return {
+            "answer": "I do not have readable text for these sources yet. For scanned PDFs or images, make sure Tesseract OCR is installed and re-upload them.",
+            "mode": "no-context",
+            "materials": materials,
+            "question": question,
+        }
+
+    combined_context = clipped("\n\n---\n\n".join(contexts), 42000)
+    system = (
+        "You are StudyFlow's exam-prep tutor. Answer only from the selected study sources. "
+        "When sources disagree or the answer is missing, say so clearly. Keep answers practical, student-facing, "
+        "and end with a short revision prompt when useful."
+    )
+    answer = call_ai_text(
+        system,
+        f"Selected study sources:\n{combined_context}\n\nStudent question: {question}",
+    )
+    if answer:
+        return {"answer": answer, "mode": "ai", "materials": materials, "question": question}
+
+    return {
+        "answer": local_answer(question, combined_context),
+        "mode": "local",
+        "materials": materials,
+        "question": question,
     }
 
 
