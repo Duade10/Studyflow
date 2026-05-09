@@ -24,7 +24,19 @@ const SHARE_STORE_NAME = "shared-files";
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, options);
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Request failed" }));
+    const text = await response.text().catch(() => "");
+    let error = { detail: "" };
+    try {
+      error = text ? JSON.parse(text) : error;
+    } catch {
+      error = { detail: text };
+    }
+    if (response.status === 413) {
+      throw new Error("That file is larger than the server upload limit. Try a smaller file or ask admin to raise the limit.");
+    }
+    if (response.status === 504) {
+      throw new Error("The server took too long processing this file. Try again, or use a smaller scanned PDF.");
+    }
     throw new Error(error.detail || "Request failed");
   }
   return response.json();

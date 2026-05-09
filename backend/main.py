@@ -208,7 +208,7 @@ def extract_text(path: Path) -> str:
         text = "\n\n".join(text_parts).strip()
         if text:
             return text
-        return extract_pdf_ocr_text(path, max_pages=min(page_count or 10, 20))
+        return extract_pdf_ocr_text(path, max_pages=min(page_count or 6, 6))
 
     if suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"}:
         return extract_ocr_text(path)
@@ -264,7 +264,7 @@ def extract_pdf_ocr_text(path: Path, max_pages: int = 20) -> str:
             for page_number, page in enumerate(document, start=1):
                 if page_number > max_pages:
                     break
-                pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
                 image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
                 text = pytesseract.image_to_string(image).strip()
                 if text:
