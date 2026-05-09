@@ -6,6 +6,7 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
+  MessageSquareText,
   Paperclip,
   Plus,
   Send,
@@ -84,7 +85,9 @@ function App() {
   const [sharedFiles, setSharedFiles] = useState([]);
   const [pasteText, setPasteText] = useState("");
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [notice, setNotice] = useState("");
   const [uploading, setUploading] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -107,12 +110,26 @@ function App() {
     }
     setCourseId(workspace.id);
     await loadMaterials(workspace.id);
+    await loadConversations();
   }
 
   async function loadMaterials(id = courseId) {
     if (!id) return;
     const detail = await api(`/courses/${id}`);
     setMaterials(detail.materials || []);
+  }
+
+  async function loadConversations() {
+    const rows = await api("/conversations");
+    setConversations(rows);
+    return rows;
+  }
+
+  async function openConversation(id) {
+    const conversation = await api(`/conversations/${id}`);
+    setActiveConversationId(conversation.id);
+    setMessages(conversation.messages || []);
+    setSelectedIds(conversation.material_ids || []);
   }
 
   useEffect(() => {
@@ -216,16 +233,42 @@ function App() {
     }
 
     setAsking(true);
-    setAnswer(null);
+    const userMessage = {
+      id: `pending-user-${Date.now()}`,
+      role: "user",
+      content: question,
+      material_ids: selectedIds,
+      created_at: new Date().toISOString(),
+    };
+    const pendingMessage = {
+      id: `pending-assistant-${Date.now()}`,
+      role: "assistant",
+      content: "Thinking...",
+      mode: "pending",
+      material_ids: selectedIds,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((current) => [...current, userMessage, pendingMessage]);
+    const askedQuestion = question;
+    setQuestion("");
     try {
       const response = await api("/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ material_ids: selectedIds, question }),
+        body: JSON.stringify({
+          material_ids: selectedIds,
+          question: askedQuestion,
+          conversation_id: activeConversationId,
+        }),
       });
-      setAnswer(response);
+      setActiveConversationId(response.conversation_id);
+      const conversation = await api(`/conversations/${response.conversation_id}`);
+      setMessages(conversation.messages || []);
+      await loadConversations();
       setNotice(response.mode === "ai" ? "Answered with AI from your selected sources." : "Answered from extracted text.");
     } catch (error) {
+      setMessages((current) => current.filter((message) => message.id !== userMessage.id && message.id !== pendingMessage.id));
+      setQuestion(askedQuestion);
       setNotice(error.message);
     } finally {
       setAsking(false);
@@ -237,6 +280,23 @@ function App() {
     setMaterials((current) => current.filter((item) => item.id !== material.id));
     setSelectedIds((current) => current.filter((id) => id !== material.id));
     setNotice(`Deleted ${material.title}.`);
+  }
+
+  async function newChat() {
+    setActiveConversationId(null);
+    setMessages([]);
+    setQuestion("");
+    setNotice("New chat ready.");
+  }
+
+  async function removeConversation(conversationId) {
+    await api(`/conversations/${conversationId}`, { method: "DELETE" });
+    if (activeConversationId === conversationId) {
+      setActiveConversationId(null);
+      setMessages([]);
+    }
+    await loadConversations();
+    setNotice("Chat deleted.");
   }
 
   async function installApp() {
@@ -410,6 +470,59 @@ function App() {
                 })}
               </div>
             </section>
+
+            <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold">Chat history</h2>
+                <button
+                  className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-black"
+                  type="button"
+                  onClick={newChat}
+                >
+                  New
+                </button>
+              </div>
+              <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                {conversations.length === 0 && (
+                  <p className="rounded-2xl bg-black/20 p-4 text-sm text-white/45">Your chats will be saved here.</p>
+                )}
+                {conversations.map((conversation) => (
+                  <article
+                    className={`flex items-center gap-3 rounded-2xl border p-3 ${
+                      activeConversationId === conversation.id
+                        ? "border-emerald-300/50 bg-emerald-300/10"
+                        : "border-white/10 bg-black/20"
+                    }`}
+                    key={conversation.id}
+                  >
+                    <button
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/5 text-white/55"
+                      type="button"
+                      onClick={() => openConversation(conversation.id).catch((error) => setNotice(error.message))}
+                    >
+                      <MessageSquareText className="h-4 w-4" />
+                    </button>
+                    <button
+                      className="min-w-0 flex-1 text-left"
+                      type="button"
+                      onClick={() => openConversation(conversation.id).catch((error) => setNotice(error.message))}
+                    >
+                      <strong className="block truncate text-sm">{conversation.title}</strong>
+                      <span className="block truncate text-xs text-white/45">
+                        {conversation.message_count} message{conversation.message_count === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                    <button
+                      className="rounded-full p-2 text-white/30 hover:bg-red-400/10 hover:text-red-200"
+                      type="button"
+                      onClick={() => removeConversation(conversation.id).catch((error) => setNotice(error.message))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
           </aside>
 
           <section className="flex min-h-[640px] flex-col rounded-[2.4rem] border border-white/10 bg-white/[0.045] p-4 shadow-2xl backdrop-blur lg:p-5">
@@ -418,9 +531,14 @@ function App() {
                 <p className="text-xs uppercase tracking-[0.24em] text-white/35">Ask</p>
                 <h2 className="text-2xl font-semibold tracking-tight">Chat with selected sources</h2>
               </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-300 text-black">
-                <Bot className="h-5 w-5" />
-              </div>
+              <button
+                className="inline-flex items-center gap-2 rounded-full bg-sky-300 px-4 py-2 text-sm font-semibold text-black"
+                type="button"
+                onClick={newChat}
+              >
+                <Plus className="h-4 w-4" />
+                New chat
+              </button>
             </div>
 
             <div className="mb-4 flex flex-wrap gap-2">
@@ -442,7 +560,7 @@ function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto rounded-[1.75rem] bg-black/20 p-4">
-              {!answer && (
+              {messages.length === 0 && (
                 <div className="flex h-full min-h-[360px] flex-col items-center justify-center text-center">
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white text-black">
                     <Sparkles className="h-7 w-7" />
@@ -453,26 +571,24 @@ function App() {
                   </p>
                 </div>
               )}
-              {answer && (
-                <article className="space-y-4">
-                  <div className="rounded-2xl bg-white/10 p-4">
-                    <p className="text-sm text-white/45">You asked</p>
-                    <p className="mt-1 text-white/85">{answer.question}</p>
-                  </div>
-                  <div className="rounded-2xl bg-white p-5 text-black">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
-                      {answer.mode} answer
-                    </p>
-                    <p className="whitespace-pre-wrap leading-7">{answer.answer}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {answer.materials?.map((material) => (
-                      <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/55" key={material.id}>
-                        {material.title}
-                      </span>
-                    ))}
-                  </div>
-                </article>
+              {messages.length > 0 && (
+                <div className="space-y-3">
+                  {messages.map((message) => (
+                    <article
+                      className={`max-w-[92%] rounded-2xl p-4 ${
+                        message.role === "user"
+                          ? "ml-auto bg-sky-300 text-black"
+                          : "mr-auto bg-white text-black"
+                      }`}
+                      key={message.id}
+                    >
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] opacity-45">
+                        {message.role === "user" ? "You" : message.mode === "pending" ? "StudyFlow" : `${message.mode || "saved"} answer`}
+                      </p>
+                      <p className="whitespace-pre-wrap leading-7">{message.content}</p>
+                    </article>
+                  ))}
+                </div>
               )}
             </div>
 

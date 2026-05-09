@@ -120,6 +120,27 @@ def init_db() -> None:
               FOREIGN KEY(chunk_id) REFERENCES material_chunks(id) ON DELETE SET NULL,
               FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS conversations (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              course_id INTEGER,
+              title TEXT NOT NULL,
+              material_ids TEXT NOT NULL DEFAULT '[]',
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS chat_messages (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              conversation_id INTEGER NOT NULL,
+              role TEXT NOT NULL,
+              content TEXT NOT NULL,
+              mode TEXT,
+              material_ids TEXT NOT NULL DEFAULT '[]',
+              created_at TEXT NOT NULL,
+              FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+            );
             """
         )
         columns = {
@@ -155,6 +176,13 @@ class AskIn(BaseModel):
 class MultiAskIn(BaseModel):
     material_ids: list[int]
     question: str
+    conversation_id: Optional[int] = None
+
+
+class ConversationIn(BaseModel):
+    course_id: Optional[int] = None
+    title: Optional[str] = None
+    material_ids: list[int] = []
 
 
 def extract_text(path: Path) -> str:
@@ -495,6 +523,77 @@ def local_answer(question: str, context: str) -> str:
         return "I could not find enough extracted text from this material to answer that yet. If this is a scanned PDF, install Tesseract so StudyFlow can OCR it."
     snippets = "\n\n".join(paragraph for _, paragraph in scored[:3])
     return f"AI is not configured yet, but these parts of the material look relevant:\n\n{snippets}"
+
+
+def create_conversation_record(
+    connection: sqlite3.Connection,
+    title: str,
+    material_ids: list[int],
+    course_id: Optional[int] = None,
+) -> int:
+    now = datetime.utcnow().isoformat()
+    cursor = connection.execute(
+        """
+        INSERT INTO conversations (course_id, title, material_ids, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (course_id, title[:120] or "New chat", json.dumps(material_ids), now, now),
+    )
+    return int(cursor.lastrowid)
+
+
+def conversation_snapshot(connection: sqlite3.Connection, conversation_id: int) -> dict:
+    conversation = connection.execute(
+        "SELECT * FROM conversations WHERE id = ?",
+        (conversation_id,),
+    ).fetchone()
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    messages = connection.execute(
+        """
+        SELECT *
+        FROM chat_messages
+        WHERE conversation_id = ?
+        ORDER BY created_at ASC, id ASC
+        """,
+        (conversation_id,),
+    ).fetchall()
+
+    return {
+        **row_to_dict(conversation),
+        "material_ids": json.loads(conversation["material_ids"] or "[]"),
+        "messages": [
+            {
+                **row_to_dict(row),
+                "material_ids": json.loads(row["material_ids"] or "[]"),
+            }
+            for row in messages
+        ],
+    }
+
+
+def insert_chat_message(
+    connection: sqlite3.Connection,
+    conversation_id: int,
+    role: str,
+    content: str,
+    material_ids: list[int],
+    mode: Optional[str] = None,
+) -> int:
+    now = datetime.utcnow().isoformat()
+    cursor = connection.execute(
+        """
+        INSERT INTO chat_messages (conversation_id, role, content, mode, material_ids, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (conversation_id, role, content, mode, json.dumps(material_ids), now),
+    )
+    connection.execute(
+        "UPDATE conversations SET updated_at = ?, material_ids = ? WHERE id = ?",
+        (now, json.dumps(material_ids), conversation_id),
+    )
+    return int(cursor.lastrowid)
 
 
 def process_material(connection: sqlite3.Connection, material_id: int) -> dict:
@@ -868,6 +967,59 @@ def ask_material(material_id: int, payload: AskIn) -> dict:
     }
 
 
+@app.get("/conversations")
+def list_conversations() -> list[dict]:
+    with db() as connection:
+        rows = connection.execute(
+            """
+            SELECT c.*,
+              COUNT(cm.id) AS message_count
+            FROM conversations c
+            LEFT JOIN chat_messages cm ON cm.conversation_id = c.id
+            GROUP BY c.id
+            ORDER BY c.updated_at DESC
+            """
+        ).fetchall()
+    return [
+        {
+            **row_to_dict(row),
+            "material_ids": json.loads(row["material_ids"] or "[]"),
+        }
+        for row in rows
+    ]
+
+
+@app.post("/conversations")
+def create_conversation(payload: ConversationIn) -> dict:
+    with db() as connection:
+        conversation_id = create_conversation_record(
+            connection,
+            payload.title or "New chat",
+            payload.material_ids,
+            payload.course_id,
+        )
+        return conversation_snapshot(connection, conversation_id)
+
+
+@app.get("/conversations/{conversation_id}")
+def get_conversation(conversation_id: int) -> dict:
+    with db() as connection:
+        return conversation_snapshot(connection, conversation_id)
+
+
+@app.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: int) -> dict:
+    with db() as connection:
+        existing = connection.execute(
+            "SELECT id FROM conversations WHERE id = ?",
+            (conversation_id,),
+        ).fetchone()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        connection.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+    return {"deleted": True, "id": conversation_id}
+
+
 @app.post("/ask")
 def ask_across_materials(payload: MultiAskIn) -> dict:
     question = payload.question.strip()
@@ -881,6 +1033,7 @@ def ask_across_materials(payload: MultiAskIn) -> dict:
 
     contexts: list[str] = []
     materials: list[dict] = []
+    previous_messages: list[str] = []
     with db() as connection:
         for material_id in material_ids:
             material, context = material_context(connection, material_id)
@@ -888,12 +1041,48 @@ def ask_across_materials(payload: MultiAskIn) -> dict:
             if context:
                 contexts.append(f"Source: {material['title']}\n{context}")
 
+        conversation_id = payload.conversation_id
+        if conversation_id is not None:
+            conversation = connection.execute(
+                "SELECT id FROM conversations WHERE id = ?",
+                (conversation_id,),
+            ).fetchone()
+            if conversation is None:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+        else:
+            conversation_id = create_conversation_record(
+                connection,
+                question[:60],
+                material_ids,
+                None,
+            )
+
+        previous_rows = connection.execute(
+            """
+            SELECT role, content
+            FROM chat_messages
+            WHERE conversation_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 8
+            """,
+            (conversation_id,),
+        ).fetchall()
+        previous_messages = [
+            f"{row['role'].title()}: {row['content']}"
+            for row in reversed(previous_rows)
+        ]
+        insert_chat_message(connection, conversation_id, "user", question, material_ids)
+
     if not contexts:
+        answer = "I do not have readable text for these sources yet. For scanned PDFs or images, make sure Tesseract OCR is installed and re-upload them."
+        with db() as connection:
+            insert_chat_message(connection, int(conversation_id), "assistant", answer, material_ids, "no-context")
         return {
-            "answer": "I do not have readable text for these sources yet. For scanned PDFs or images, make sure Tesseract OCR is installed and re-upload them.",
+            "answer": answer,
             "mode": "no-context",
             "materials": materials,
             "question": question,
+            "conversation_id": conversation_id,
         }
 
     combined_context = clipped("\n\n---\n\n".join(contexts), 42000)
@@ -904,16 +1093,32 @@ def ask_across_materials(payload: MultiAskIn) -> dict:
     )
     answer = call_ai_text(
         system,
-        f"Selected study sources:\n{combined_context}\n\nStudent question: {question}",
+        (
+            f"Selected study sources:\n{combined_context}\n\n"
+            f"Recent chat history:\n{chr(10).join(previous_messages) if previous_messages else 'No previous messages.'}\n\n"
+            f"Student question: {question}"
+        ),
     )
     if answer:
-        return {"answer": answer, "mode": "ai", "materials": materials, "question": question}
+        with db() as connection:
+            insert_chat_message(connection, int(conversation_id), "assistant", answer, material_ids, "ai")
+        return {
+            "answer": answer,
+            "mode": "ai",
+            "materials": materials,
+            "question": question,
+            "conversation_id": conversation_id,
+        }
 
+    answer = local_answer(question, combined_context)
+    with db() as connection:
+        insert_chat_message(connection, int(conversation_id), "assistant", answer, material_ids, "local")
     return {
-        "answer": local_answer(question, combined_context),
+        "answer": answer,
         "mode": "local",
         "materials": materials,
         "question": question,
+        "conversation_id": conversation_id,
     }
 
 
